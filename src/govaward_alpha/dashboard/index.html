@@ -1,0 +1,1478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GovAward Alpha</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg:        #0a0b0d;
+      --bg-card:   #111318;
+      --bg-row:    #13151a;
+      --bg-hover:  #1a1d25;
+      --border:    #1e2130;
+      --border-lt: #252a38;
+
+      --amber:      #f5a623;
+      --amber-dim:  #b87918;
+      --amber-glow: rgba(245,166,35,0.10);
+
+      --red:    #e05252;
+      --orange: #e08a3c;
+      --yellow: #d4b84a;
+      --cyan:   #4ab8d4;
+      --green:  #3db878;
+
+      --text:      #e2e4ea;
+      --text-dim:  #7a8099;
+      --text-mute: #3d4257;
+
+      --mono: 'JetBrains Mono', monospace;
+      --sans: 'Inter', sans-serif;
+      --radius: 6px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 13px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Layout ─────────────────────────────────────────── */
+    #app {
+      display: grid;
+      grid-template-rows: 52px 1fr;
+      grid-template-columns: 210px 1fr;
+      grid-template-areas: "topbar topbar" "sidebar main";
+      height: 100%;
+    }
+
+    /* ── Topbar ─────────────────────────────────────────── */
+    #topbar {
+      grid-area: topbar;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-card);
+      position: sticky; top: 0; z-index: 100;
+    }
+    .logo { display:flex; align-items:center; gap:9px; font-weight:700; font-size:14px; letter-spacing:.02em; color:var(--amber); text-transform:uppercase; }
+    .logo-icon { width:26px; height:26px; border:2px solid var(--amber); border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; font-family:var(--mono); color:var(--amber); flex-shrink:0; }
+    .topbar-sep { flex:1; }
+    .topbar-meta { display:flex; align-items:center; gap:16px; color:var(--text-dim); font-size:11px; font-family:var(--mono); }
+    .status-dot { width:6px; height:6px; border-radius:50%; background:var(--green); box-shadow:0 0 6px var(--green); display:inline-block; }
+    #refresh-btn { display:flex; align-items:center; gap:6px; padding:5px 12px; border:1px solid var(--border-lt); border-radius:var(--radius); background:transparent; color:var(--text-dim); font-size:11px; font-family:var(--sans); cursor:pointer; transition:border-color .15s, color .15s; }
+    #refresh-btn:hover { border-color:var(--amber); color:var(--amber); }
+
+    /* ── Sidebar ─────────────────────────────────────────── */
+    #sidebar {
+      grid-area: sidebar;
+      border-right: 1px solid var(--border);
+      background: var(--bg-card);
+      padding: 16px 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .nav-label { padding:0 16px 6px; font-size:10px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--text-mute); }
+    .nav-item { display:flex; align-items:center; gap:10px; padding:8px 16px; cursor:pointer; color:var(--text-dim); font-size:12.5px; font-weight:500; transition:background .12s, color .12s; border-left:2px solid transparent; }
+    .nav-item:hover { background:var(--bg-hover); color:var(--text); }
+    .nav-item.active { background:var(--amber-glow); color:var(--amber); border-left-color:var(--amber); }
+    .nav-icon { width:14px; text-align:center; opacity:.7; flex-shrink:0; }
+    .sidebar-footer { margin-top:auto; padding:12px 16px; border-top:1px solid var(--border); font-size:10px; color:var(--text-mute); font-family:var(--mono); }
+
+    /* ── Main ────────────────────────────────────────────── */
+    #main { grid-area:main; overflow-y:auto; padding:20px 24px; display:flex; flex-direction:column; gap:18px; }
+
+    /* ── Pages ───────────────────────────────────────────── */
+    .page { display:none; flex-direction:column; gap:18px; }
+    .page.active { display:flex; }
+
+    /* ── Stats strip ─────────────────────────────────────── */
+    .stats-strip { display:grid; grid-template-columns:repeat(auto-fill,minmax(155px,1fr)); gap:10px; }
+    .stat-card { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); padding:13px 15px; display:flex; flex-direction:column; gap:3px; }
+    .stat-label { font-size:10px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--text-mute); }
+    .stat-value { font-size:21px; font-weight:700; font-family:var(--mono); color:var(--amber); line-height:1.1; }
+    .stat-sub { font-size:10.5px; color:var(--text-dim); font-family:var(--mono); }
+
+    /* ── Filter bar ─────────────────────────────────────── */
+    .filter-bar {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .filter-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .filter-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--text-mute);
+      white-space: nowrap;
+      width: 52px;
+      flex-shrink: 0;
+    }
+
+    .level-pills { display:flex; gap:5px; flex-wrap:wrap; }
+
+    /* Freshness pills — the alpha-gen recency window */
+    .freshness-pills { display:flex; gap:4px; flex-wrap:wrap; }
+    .fresh-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 11px;
+      border-radius: 3px;
+      font-size: 11px;
+      font-weight: 600;
+      font-family: var(--mono);
+      letter-spacing: .04em;
+      cursor: pointer;
+      border: 1px solid var(--border-lt);
+      color: var(--text-dim);
+      transition: border-color .15s, color .15s, background .15s;
+    }
+    .fresh-pill:hover { border-color: var(--text-dim); color: var(--text); }
+    .fresh-pill.on {
+      background: rgba(61,184,120,.15);
+      border-color: var(--green);
+      color: var(--green);
+    }
+    .freshness-note { font-size: 10.5px; color: var(--text-mute); font-family: var(--mono); margin-left: 8px; }
+
+    /* Per-row freshness badge */
+    .fresh-badge {
+      display: inline-block;
+      margin-left: 6px;
+      padding: 0 5px;
+      font-size: 8.5px;
+      font-weight: 700;
+      font-family: var(--mono);
+      letter-spacing: .05em;
+      border-radius: 2px;
+      vertical-align: 1px;
+    }
+    .fresh-badge.fresh-now  { background: rgba(61,184,120,.18); color: var(--green); border: 1px solid rgba(61,184,120,.4); }
+    .fresh-badge.fresh-week { background: rgba(245,166,35,.15); color: var(--amber); border: 1px solid rgba(245,166,35,.4); }
+    .fresh-badge.fresh-old  { background: rgba(122,128,153,.10); color: var(--text-mute); border: 1px solid var(--border-lt); }
+
+    .level-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 10px;
+      border-radius: 3px;
+      font-size: 10px;
+      font-weight: 700;
+      font-family: var(--mono);
+      letter-spacing: .04em;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: opacity .15s, border-color .15s;
+      opacity: .35;
+    }
+    .level-pill.on { opacity: 1; }
+    .pill-RED    { background:rgba(224,82,82,.15);  color:var(--red);    border-color:rgba(224,82,82,.4);  }
+    .pill-ORANGE { background:rgba(224,138,60,.15); color:var(--orange); border-color:rgba(224,138,60,.4); }
+    .pill-YELLOW { background:rgba(212,184,74,.15); color:var(--yellow); border-color:rgba(212,184,74,.4); }
+    .pill-WATCH  { background:rgba(74,184,212,.12); color:var(--cyan);   border-color:rgba(74,184,212,.4); }
+
+    .filter-input {
+      background: var(--bg);
+      border: 1px solid var(--border-lt);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-size: 11.5px;
+      font-family: var(--mono);
+      padding: 4px 8px;
+      outline: none;
+      transition: border-color .15s;
+    }
+    .filter-input:focus { border-color: var(--amber); }
+    .filter-input::placeholder { color: var(--text-mute); }
+
+    select.filter-input {
+      cursor: pointer;
+      -webkit-appearance: none;
+      appearance: none;
+      padding-right: 22px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%233d4257'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 7px center;
+    }
+
+    .score-range {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .score-range input[type=number] {
+      width: 52px;
+      text-align: center;
+    }
+    .score-sep { color:var(--text-mute); font-size:11px; }
+
+    .filter-toggle {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 10px;
+      border: 1px solid var(--border-lt);
+      border-radius: var(--radius);
+      cursor: pointer;
+      font-size: 11px;
+      color: var(--text-dim);
+      background: transparent;
+      font-family: var(--sans);
+      transition: border-color .15s, color .15s;
+    }
+    .filter-toggle.on { border-color:var(--amber); color:var(--amber); }
+    .filter-toggle.disabled { opacity: .4; cursor: not-allowed; }
+    .filter-toggle .badge-count {
+      display: inline-block;
+      margin-left: 6px;
+      padding: 0 5px;
+      min-width: 16px;
+      height: 14px;
+      line-height: 14px;
+      text-align: center;
+      font-family: var(--mono);
+      font-size: 9px;
+      font-weight: 700;
+      border-radius: 7px;
+      background: var(--border);
+      color: var(--text-mute);
+    }
+    .filter-toggle.on .badge-count {
+      background: var(--amber);
+      color: var(--bg);
+    }
+
+    /* Preset toggles — visually heavier than secondary toggles */
+    .preset-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border: 1px solid var(--border-lt);
+      border-radius: var(--radius);
+      cursor: pointer;
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--text-dim);
+      background: transparent;
+      font-family: var(--sans);
+      transition: border-color .15s, color .15s, background .15s;
+    }
+    .preset-toggle:hover { border-color: var(--text-dim); color: var(--text); }
+    .preset-toggle.on {
+      border-color: var(--amber);
+      color: var(--amber);
+      background: var(--amber-glow);
+    }
+    .preset-check {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      line-height: 12px;
+      text-align: center;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-mute);
+    }
+    .preset-toggle.on .preset-check { color: var(--amber); }
+
+    .filter-actions { display:flex; gap:6px; margin-left:auto; }
+
+    .btn-apply {
+      padding: 4px 14px;
+      background: var(--amber-glow);
+      border: 1px solid var(--amber-dim);
+      border-radius: var(--radius);
+      color: var(--amber);
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: var(--sans);
+      transition: background .15s;
+    }
+    .btn-apply:hover { background: rgba(245,166,35,.2); }
+
+    .btn-reset {
+      padding: 4px 10px;
+      background: transparent;
+      border: 1px solid var(--border-lt);
+      border-radius: var(--radius);
+      color: var(--text-mute);
+      font-size: 11px;
+      cursor: pointer;
+      font-family: var(--sans);
+    }
+    .btn-reset:hover { border-color:var(--border-lt); color:var(--text-dim); }
+
+    .filter-status {
+      font-size: 10.5px;
+      color: var(--text-mute);
+      font-family: var(--mono);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .active-filter-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 1px 7px;
+      background: var(--amber-glow);
+      border: 1px solid var(--amber-dim);
+      border-radius: 10px;
+      font-size: 9.5px;
+      color: var(--amber);
+      cursor: pointer;
+    }
+    .active-filter-tag:hover { opacity: .7; }
+
+    /* ── Section headers ─────────────────────────────────── */
+    .section-header { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+    .section-title { font-size:12px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--text-dim); }
+    .section-count { font-size:10px; font-family:var(--mono); color:var(--text-mute); }
+
+    /* ── Card / Table ────────────────────────────────────── */
+    .card { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
+
+    .alerts-table { width:100%; border-collapse:collapse; }
+    .alerts-table thead tr { background:var(--bg); border-bottom:1px solid var(--border); }
+    .alerts-table th { padding:7px 11px; text-align:left; font-size:10px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--text-mute); cursor:pointer; user-select:none; white-space:nowrap; }
+    .alerts-table th:hover { color:var(--text-dim); }
+    .sort-arrow { display:inline; margin-left:3px; opacity:.4; }
+    .sort-arrow.asc::after  { content: '↑'; }
+    .sort-arrow.desc::after { content: '↓'; }
+    .sort-arrow.active { opacity:1; color:var(--amber); }
+
+    .alerts-table tbody tr { border-bottom:1px solid var(--border); cursor:pointer; transition:background .1s; }
+    .alerts-table tbody tr:last-child { border-bottom:none; }
+    .alerts-table tbody tr:hover { background:var(--bg-hover); }
+    .alerts-table tbody tr.expanded { background:var(--bg-hover); }
+    .alerts-table td { padding:8px 11px; font-size:12px; vertical-align:middle; }
+
+    .level-badge { display:inline-flex; align-items:center; padding:2px 7px; border-radius:3px; font-size:10px; font-weight:700; font-family:var(--mono); letter-spacing:.04em; }
+    .level-RED    { background:rgba(224,82,82,.15);  color:var(--red);    border:1px solid rgba(224,82,82,.3);  }
+    .level-ORANGE { background:rgba(224,138,60,.15); color:var(--orange); border:1px solid rgba(224,138,60,.3); }
+    .level-YELLOW { background:rgba(212,184,74,.15); color:var(--yellow); border:1px solid rgba(212,184,74,.3); }
+    .level-WATCH  { background:rgba(74,184,212,.12); color:var(--cyan);   border:1px solid rgba(74,184,212,.3); }
+
+    .ticker-cell { font-family:var(--mono); font-weight:600; font-size:12.5px; color:var(--amber); }
+    .amount-cell { font-family:var(--mono); font-size:12px; font-weight:500; color:var(--text); }
+    .mktcap-cell { font-family:var(--mono); font-size:11px; color:var(--text-dim); }
+    .ratio-cell  { font-family:var(--mono); font-size:11px; }
+    .agency-cell { font-size:11.5px; color:var(--text-dim); max-width:180px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .awardee-cell { max-width:240px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .date-cell   { font-family:var(--mono); font-size:11px; color:var(--text-mute); }
+
+    .score-bar-wrap { display:flex; align-items:center; gap:6px; }
+    .score-bar-bg   { flex:1; height:4px; background:var(--border); border-radius:2px; overflow:hidden; min-width:36px; }
+    .score-bar-fill { height:100%; border-radius:2px; background:linear-gradient(90deg,var(--amber-dim),var(--amber)); }
+    .score-num      { font-family:var(--mono); font-size:11px; color:var(--text-dim); width:22px; text-align:right; }
+
+    .flag-tag { font-family:var(--mono); font-size:9px; padding:1px 4px; border-radius:2px; margin-left:3px; }
+    .flag-IDIQ { background:rgba(212,184,74,.12); color:var(--yellow); border:1px solid rgba(212,184,74,.3); }
+    .flag-MOD  { background:rgba(74,184,212,.12);  color:var(--cyan);   border:1px solid rgba(74,184,212,.3); }
+
+    .sector-badge { font-size:10px; font-family:var(--mono); padding:1px 6px; border-radius:2px; background:rgba(61,184,120,.08); color:var(--green); border:1px solid rgba(61,184,120,.2); white-space:nowrap; }
+
+    .ratio-good { color:var(--green); }
+    .ratio-warn { color:var(--yellow); }
+    .ratio-hot  { color:var(--red); }
+
+    /* ── Expand pane ─────────────────────────────────────── */
+    .expand-row td { padding:0; border-bottom:1px solid var(--border); }
+
+    .expand-inner {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      border-top: 1px solid var(--border);
+    }
+
+    .expand-pane { padding:15px 18px; border-right:1px solid var(--border); }
+    .expand-pane:last-child { border-right:none; }
+
+    .expand-subtitle { font-size:10px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--text-mute); margin-bottom:9px; }
+
+    .reason-list { list-style:none; display:flex; flex-direction:column; gap:4px; }
+    .reason-list li { font-size:11.5px; color:var(--text-dim); padding-left:13px; position:relative; }
+    .reason-list li::before { content:'›'; position:absolute; left:0; color:var(--amber-dim); }
+
+    .kv-grid { display:grid; grid-template-columns:auto 1fr; gap:3px 12px; align-items:baseline; }
+    .kv-k { font-size:10px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--text-mute); white-space:nowrap; }
+    .kv-v { font-size:11.5px; font-family:var(--mono); color:var(--text-dim); }
+
+    .meta-row { display:flex; gap:14px; flex-wrap:wrap; margin-top:10px; padding-top:10px; border-top:1px solid var(--border); }
+    .meta-item { display:flex; flex-direction:column; gap:1px; }
+    .meta-k { font-size:9.5px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--text-mute); }
+    .meta-v { font-size:11px; font-family:var(--mono); color:var(--text-dim); }
+
+    .claude-grid { display:flex; flex-direction:column; gap:7px; }
+    .claude-field { display:flex; gap:9px; }
+    .claude-key { font-size:10px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--text-mute); width:72px; flex-shrink:0; padding-top:1px; }
+    .claude-val { font-size:11.5px; color:var(--text-dim); }
+    .conf-high { color:var(--green); font-weight:600; font-family:var(--mono); font-size:11px; }
+    .conf-med  { color:var(--yellow); font-weight:600; font-family:var(--mono); font-size:11px; }
+    .conf-low  { color:var(--red); font-weight:600; font-family:var(--mono); font-size:11px; }
+
+    .quality-pill { display:inline-flex; align-items:center; padding:1px 7px; border-radius:3px; font-size:10px; font-family:var(--mono); font-weight:500; }
+    .q-real_revenue { background:rgba(61,184,120,.12); color:var(--green); border:1px solid rgba(61,184,120,.3); }
+    .q-idiq_ceiling { background:rgba(212,184,74,.12); color:var(--yellow); border:1px solid rgba(212,184,74,.3); }
+    .q-modification { background:rgba(74,184,212,.12); color:var(--cyan); border:1px solid rgba(74,184,212,.3); }
+    .q-unclear      { background:rgba(122,128,153,.12); color:var(--text-dim); border:1px solid var(--border-lt); }
+
+    .watch-flags { display:flex; flex-direction:column; gap:3px; }
+    .watch-flag { font-size:11px; color:var(--orange); padding-left:14px; position:relative; }
+    .watch-flag::before { content:'⚠'; position:absolute; left:0; font-size:9px; }
+    .narrative { font-size:11.5px; color:var(--text-dim); line-height:1.6; font-style:italic; border-left:2px solid var(--amber-dim); padding-left:9px; }
+    .no-claude { font-size:11px; color:var(--text-mute); font-style:italic; }
+
+    /* ── Charts ─────────────────────────────────────────── */
+    .charts-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+    .chart-card { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); padding:15px 18px; }
+    .chart-title { font-size:11px; font-weight:600; letter-spacing:.07em; text-transform:uppercase; color:var(--text-dim); margin-bottom:12px; }
+    .chart-wrap { position:relative; height:190px; }
+
+    /* ── Companies table ─────────────────────────────────── */
+    .co-table { width:100%; border-collapse:collapse; }
+    .co-table thead tr { background:var(--bg); border-bottom:1px solid var(--border); }
+    .co-table th { padding:7px 11px; text-align:left; font-size:10px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--text-mute); }
+    .co-table th.r { text-align:right; }
+    .co-table td { padding:8px 11px; font-size:12px; border-bottom:1px solid var(--border); }
+    .co-table td.r { text-align:right; font-family:var(--mono); }
+    .co-table tr:last-child td { border-bottom:none; }
+    .co-table tr:hover { background:var(--bg-hover); }
+
+    /* ── Source health ───────────────────────────────────── */
+    .source-table { width:100%; border-collapse:collapse; }
+    .source-table th { padding:7px 11px; text-align:left; font-size:10px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--text-mute); border-bottom:1px solid var(--border); background:var(--bg); }
+    .source-table td { padding:8px 11px; font-size:12px; border-bottom:1px solid var(--border); }
+    .source-table tr:last-child td { border-bottom:none; }
+    .source-table tr:hover { background:var(--bg-hover); }
+    .status-badge { display:inline-flex; align-items:center; gap:4px; padding:1px 6px; border-radius:3px; font-size:10px; font-family:var(--mono); font-weight:600; }
+    .status-success { background:rgba(61,184,120,.12); color:var(--green); border:1px solid rgba(61,184,120,.3); }
+    .status-error   { background:rgba(224,82,82,.12);  color:var(--red); border:1px solid rgba(224,82,82,.3); }
+    .status-running { background:rgba(245,166,35,.12); color:var(--amber); border:1px solid rgba(245,166,35,.3); }
+
+    /* ── Loading / empty ─────────────────────────────────── */
+    .loading { display:flex; align-items:center; justify-content:center; padding:36px; color:var(--text-mute); font-size:12px; font-family:var(--mono); gap:10px; }
+    .spinner { width:14px; height:14px; border:2px solid var(--border-lt); border-top-color:var(--amber); border-radius:50%; animation:spin .7s linear infinite; flex-shrink:0; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .empty { padding:28px; text-align:center; color:var(--text-mute); font-size:12px; }
+
+    /* ── Misc ────────────────────────────────────────────── */
+    .chevron { display:inline-block; transition:transform .2s; color:var(--text-mute); font-size:10px; margin-left:3px; }
+    .expanded .chevron { transform:rotate(90deg); }
+    a { color:var(--amber); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- Topbar -->
+  <header id="topbar">
+    <div class="logo">
+      <div class="logo-icon">GA</div>
+      GovAward Alpha
+    </div>
+    <span class="topbar-sep"></span>
+    <div class="topbar-meta">
+      <span><span class="status-dot"></span> Live</span>
+      <span id="last-refresh-label">—</span>
+    </div>
+    <button id="refresh-btn" onclick="refreshAll()">↻ Refresh</button>
+  </header>
+
+  <!-- Sidebar -->
+  <nav id="sidebar">
+    <div class="nav-label">Navigation</div>
+    <div class="nav-item active" data-page="alerts" onclick="navigate('alerts',this)">
+      <span class="nav-icon">◈</span> Alert Feed
+    </div>
+    <div class="nav-item" data-page="companies" onclick="navigate('companies',this)">
+      <span class="nav-icon">◉</span> Companies
+    </div>
+    <div class="nav-item" data-page="analytics" onclick="navigate('analytics',this)">
+      <span class="nav-icon">◎</span> Analytics
+    </div>
+    <div class="nav-item" data-page="sources" onclick="navigate('sources',this)">
+      <span class="nav-icon">◫</span> Source Health
+    </div>
+    <div class="sidebar-footer">govaward-alpha v0.1.0<br>local-first · public data</div>
+  </nav>
+
+  <!-- Main -->
+  <main id="main">
+
+    <!-- ── Alerts page ─────────────────────────────────── -->
+    <section class="page active" id="page-alerts">
+
+      <div class="stats-strip" id="stats-strip">
+        <div class="loading"><div class="spinner"></div> Loading…</div>
+      </div>
+
+      <!-- Filter bar -->
+      <div class="filter-bar">
+
+        <!-- Freshness — the alpha-gen lens. Default: last 7 days. -->
+        <div class="filter-row">
+          <span class="filter-label">Posted</span>
+          <div class="freshness-pills" id="freshness-pills">
+            <span class="fresh-pill" data-fresh="1"   onclick="setFreshness('1')">24h</span>
+            <span class="fresh-pill on" data-fresh="7"  onclick="setFreshness('7')">7d</span>
+            <span class="fresh-pill" data-fresh="30"  onclick="setFreshness('30')">30d</span>
+            <span class="fresh-pill" data-fresh="90"  onclick="setFreshness('90')">90d</span>
+            <span class="fresh-pill" data-fresh="all" onclick="setFreshness('all')">All time</span>
+          </div>
+          <span class="freshness-note" id="freshness-note"></span>
+        </div>
+
+        <!-- Quick filter presets (the most common asks) -->
+        <div class="filter-row">
+          <span class="filter-label">Quick</span>
+          <button class="preset-toggle on" id="f-preset-50m" onclick="togglePreset('50m')" title="Only show awards of $50M or more">
+            <span class="preset-check">✓</span> Award ≥ $50M
+          </button>
+          <button class="preset-toggle on" id="f-preset-smid" onclick="togglePreset('smid')" title="Market cap between $50M and $10B (small to mid cap)">
+            <span class="preset-check">✓</span> Small/Mid Cap ($50M – $10B)
+          </button>
+          <button class="filter-toggle" id="f-claude-btn" onclick="toggleClaudeFilter()" title="Show only alerts that have Claude AI analysis">
+            <span id="f-claude-label">Claude analyzed</span>
+            <span class="badge-count" id="f-claude-count">0</span>
+          </button>
+          <div class="filter-actions">
+            <button class="btn-reset" onclick="resetFilters()">Reset</button>
+            <button class="btn-apply" onclick="applyFilters()">Apply</button>
+          </div>
+        </div>
+
+        <!-- Severity + score -->
+        <div class="filter-row">
+          <span class="filter-label">Level</span>
+          <div class="level-pills" id="level-pills">
+            <span class="level-pill pill-RED on"    data-lvl="RED"    onclick="toggleLevel('RED')">RED</span>
+            <span class="level-pill pill-ORANGE on" data-lvl="ORANGE" onclick="toggleLevel('ORANGE')">ORANGE</span>
+            <span class="level-pill pill-YELLOW on" data-lvl="YELLOW" onclick="toggleLevel('YELLOW')">YELLOW</span>
+            <span class="level-pill pill-WATCH on"  data-lvl="WATCH"  onclick="toggleLevel('WATCH')">WATCH</span>
+          </div>
+          <span class="filter-label" style="margin-left:8px">Score</span>
+          <div class="score-range">
+            <input class="filter-input" type="number" id="f-min-score" min="0" max="100" value="0" style="width:52px" onchange="applyFilters()">
+            <span class="score-sep">–</span>
+            <input class="filter-input" type="number" id="f-max-score" min="0" max="100" value="100" style="width:52px" onchange="applyFilters()">
+          </div>
+        </div>
+
+        <!-- Search -->
+        <div class="filter-row">
+          <span class="filter-label">Search</span>
+          <input class="filter-input" type="text" id="f-ticker" placeholder="Ticker (e.g. KTOS)" style="width:130px" onkeydown="if(event.key==='Enter')applyFilters()">
+          <select class="filter-input" id="f-agency" style="min-width:160px;max-width:220px" onchange="applyFilters()">
+            <option value="">All agencies</option>
+          </select>
+          <select class="filter-input" id="f-source" onchange="applyFilters()">
+            <option value="">All sources</option>
+          </select>
+          <select class="filter-input" id="f-sector" onchange="applyFilters()">
+            <option value="">All sectors</option>
+          </select>
+        </div>
+
+        <!-- Custom ranges (override the quick presets if used) -->
+        <div class="filter-row">
+          <span class="filter-label">Award $</span>
+          <div class="score-range">
+            <input class="filter-input" type="number" id="f-min-amount-m" min="0" placeholder="50" style="width:62px" onchange="onAmountChange()">
+            <span class="score-sep">M – $</span>
+            <input class="filter-input" type="number" id="f-max-amount-m" min="0" placeholder="any" style="width:62px" onchange="onAmountChange()">
+            <span class="score-sep">M</span>
+          </div>
+          <span class="filter-label" style="margin-left:12px">Mkt Cap</span>
+          <div class="score-range">
+            <input class="filter-input" type="number" id="f-min-mc-m" min="0" placeholder="50" style="width:62px" onchange="onCapChange()">
+            <span class="score-sep">M – $</span>
+            <input class="filter-input" type="number" id="f-max-mc-b" min="0" step="0.5" placeholder="10" style="width:62px" onchange="onCapChange()">
+            <span class="score-sep">B</span>
+          </div>
+        </div>
+
+        <div class="filter-status" id="filter-status"></div>
+      </div>
+
+      <!-- Alert feed -->
+      <div>
+        <div class="section-header" style="margin-bottom:9px">
+          <span class="section-title">Alert Feed</span>
+          <span class="section-count" id="alert-count">—</span>
+        </div>
+        <div class="card">
+          <div id="alerts-container">
+            <div class="loading"><div class="spinner"></div> Loading alerts…</div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ── Companies page ─────────────────────────────── -->
+    <section class="page" id="page-companies">
+      <div class="section-header">
+        <span class="section-title">Tracked Companies</span>
+        <span class="section-count" id="co-count">—</span>
+      </div>
+      <div class="card">
+        <div id="companies-container">
+          <div class="loading"><div class="spinner"></div> Loading…</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Analytics page ─────────────────────────────── -->
+    <section class="page" id="page-analytics">
+      <div class="charts-grid">
+        <div class="chart-card">
+          <div class="chart-title">Materiality Score Distribution</div>
+          <div class="chart-wrap"><canvas id="chart-scores"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Alert Level Breakdown</div>
+          <div class="chart-wrap"><canvas id="chart-levels"></canvas></div>
+        </div>
+        <div class="chart-card" style="grid-column:1/-1">
+          <div class="chart-title">Total Contract Value by Ticker (Top 15)</div>
+          <div class="chart-wrap" style="height:220px"><canvas id="chart-ticker-value"></canvas></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Sources page ───────────────────────────────── -->
+    <section class="page" id="page-sources">
+      <div class="section-header">
+        <span class="section-title">Source Run History</span>
+        <span class="section-count" id="source-count">—</span>
+      </div>
+      <div class="card">
+        <div id="sources-container">
+          <div class="loading"><div class="spinner"></div> Loading…</div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+// ── Utils ─────────────────────────────────────────────────
+
+function fmt(val) {
+  if (val == null || val === '') return 'N/A';
+  if (val >= 1e9) return '$' + (val/1e9).toFixed(2) + 'B';
+  if (val >= 1e6) return '$' + (val/1e6).toFixed(1) + 'M';
+  if (val >= 1e3) return '$' + (val/1e3).toFixed(0) + 'K';
+  return '$' + Number(val).toLocaleString();
+}
+
+function fmtVol(val) {
+  if (!val) return 'N/A';
+  if (val >= 1e6) return (val/1e6).toFixed(1) + 'M';
+  if (val >= 1e3) return (val/1e3).toFixed(0) + 'K';
+  return val;
+}
+
+function pct(num, denom) {
+  if (!num || !denom || denom === 0) return 'N/A';
+  return (num / denom * 100).toFixed(1) + '%';
+}
+
+function pctClass(num, denom) {
+  if (!num || !denom) return '';
+  const r = num / denom * 100;
+  if (r >= 20) return 'ratio-hot';
+  if (r >= 5)  return 'ratio-warn';
+  return 'ratio-good';
+}
+
+function ts(str) {
+  if (!str) return '—';
+  return str.slice(0, 16).replace('T', ' ');
+}
+
+function esc(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Navigation ────────────────────────────────────────────
+
+function navigate(pageId, el) {
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  el.classList.add('active');
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + pageId).classList.add('active');
+
+  if (pageId === 'analytics')  loadCharts();
+  if (pageId === 'sources')    loadSources();
+  if (pageId === 'companies')  loadCompanies();
+}
+
+// ── Filter state ──────────────────────────────────────────
+
+const _levels = new Set(['RED','ORANGE','YELLOW','WATCH']);
+let _claudeOnly = false;
+
+// Preset defaults — these match the most common ask: ≥ $50M awards to small/mid-cap public companies.
+// Preset values (in dollars). Custom range inputs override these when filled in.
+const PRESET_50M_AMOUNT = 50_000_000;
+const PRESET_SMID_MIN   = 50_000_000;        // $50M
+const PRESET_SMID_MAX   = 10_000_000_000;    // $10B
+const _presets = { '50m': true, 'smid': true };
+
+// Freshness preset — the alpha-gen lens. Default: last 7 days only.
+// Values: '1' | '7' | '30' | '90' | 'all'
+let _freshness = '7';
+
+function togglePreset(key) {
+  _presets[key] = !_presets[key];
+  document.getElementById('f-preset-' + key).classList.toggle('on', _presets[key]);
+  applyFilters();
+}
+
+function setFreshness(val) {
+  _freshness = val;
+  document.querySelectorAll('.fresh-pill').forEach(p => {
+    p.classList.toggle('on', p.dataset.fresh === val);
+  });
+  applyFilters();
+}
+
+function postedAfterDate() {
+  // Convert freshness preset → ISO date string; 'all' returns null.
+  if (_freshness === 'all') return null;
+  const days = parseInt(_freshness, 10);
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d.toISOString().slice(0, 10);
+}
+
+function freshBadge(postedDate) {
+  // Returns inline HTML for a freshness pill on each row.
+  if (!postedDate) return '<span class="fresh-badge fresh-old" title="No posted date — likely a backfill row from USAspending">UNDATED</span>';
+  const posted = new Date(postedDate);
+  const now = new Date();
+  const ageDays = (now - posted) / (1000 * 60 * 60 * 24);
+  if (ageDays <= 1)  return '<span class="fresh-badge fresh-now" title="Posted within last 24 hours">NEW</span>';
+  if (ageDays <= 7)  return '<span class="fresh-badge fresh-now" title="Posted within last 7 days">FRESH</span>';
+  if (ageDays <= 30) return '<span class="fresh-badge fresh-week" title="Posted within last 30 days">RECENT</span>';
+  if (ageDays <= 365) return '';  // no badge — column itself shows the date
+  return '<span class="fresh-badge fresh-old" title="Posted more than a year ago — historical backfill, not actionable signal">OLD</span>';
+}
+
+function toggleLevel(lvl) {
+  const pill = document.querySelector(`.level-pill[data-lvl="${lvl}"]`);
+  if (_levels.has(lvl)) { _levels.delete(lvl); pill.classList.remove('on'); }
+  else                  { _levels.add(lvl);    pill.classList.add('on'); }
+  applyFilters();
+}
+
+function toggleClaudeFilter() {
+  // If there are zero Claude-enriched alerts, the button is disabled — make that obvious.
+  const claudeCount = (_stats && _stats.claude_enriched) || 0;
+  const btn = document.getElementById('f-claude-btn');
+  if (claudeCount === 0) {
+    btn.classList.add('disabled');
+    btn.title = 'No alerts have Claude analysis yet. Run a scan with ANTHROPIC_API_KEY set in .env to enable AI enrichment.';
+    return;
+  }
+  _claudeOnly = !_claudeOnly;
+  btn.classList.toggle('on', _claudeOnly);
+  applyFilters();
+}
+
+function refreshClaudeButton() {
+  const btn = document.getElementById('f-claude-btn');
+  const count = (_stats && _stats.claude_enriched) || 0;
+  document.getElementById('f-claude-count').textContent = count;
+  if (count === 0) {
+    btn.classList.add('disabled');
+    btn.title = 'No alerts have Claude analysis yet. Run a scan with ANTHROPIC_API_KEY set in .env to enable AI enrichment.';
+    if (_claudeOnly) {
+      _claudeOnly = false;
+      btn.classList.remove('on');
+    }
+  } else {
+    btn.classList.remove('disabled');
+    btn.title = 'Show only alerts that have Claude AI analysis';
+  }
+}
+
+// When the user types into the custom Award $ range, automatically defer to it
+// (the preset toggle gets cleared). Same idea for the market-cap range.
+function onAmountChange() {
+  const minVal = document.getElementById('f-min-amount-m').value;
+  const maxVal = document.getElementById('f-max-amount-m').value;
+  if (minVal !== '' || maxVal !== '') {
+    _presets['50m'] = false;
+    document.getElementById('f-preset-50m').classList.remove('on');
+  }
+  applyFilters();
+}
+
+function onCapChange() {
+  const minVal = document.getElementById('f-min-mc-m').value;
+  const maxVal = document.getElementById('f-max-mc-b').value;
+  if (minVal !== '' || maxVal !== '') {
+    _presets['smid'] = false;
+    document.getElementById('f-preset-smid').classList.remove('on');
+  }
+  applyFilters();
+}
+
+function resetFilters() {
+  ['RED','ORANGE','YELLOW','WATCH'].forEach(l => {
+    _levels.add(l);
+    document.querySelector(`.level-pill[data-lvl="${l}"]`).classList.add('on');
+  });
+  _claudeOnly = false;
+  document.getElementById('f-claude-btn').classList.remove('on');
+  document.getElementById('f-min-score').value = 0;
+  document.getElementById('f-max-score').value = 100;
+  document.getElementById('f-ticker').value = '';
+  document.getElementById('f-agency').value = '';
+  document.getElementById('f-source').value = '';
+  document.getElementById('f-sector').value = '';
+  document.getElementById('f-min-amount-m').value = '';
+  document.getElementById('f-max-amount-m').value = '';
+  document.getElementById('f-min-mc-m').value = '';
+  document.getElementById('f-max-mc-b').value = '';
+  // Restore presets to ON (the default safe-by-design view)
+  _presets['50m'] = true;
+  _presets['smid'] = true;
+  document.getElementById('f-preset-50m').classList.add('on');
+  document.getElementById('f-preset-smid').classList.add('on');
+  // Restore freshness to default (last 7 days)
+  setFreshness('7');
+}
+
+function buildParams() {
+  const p = new URLSearchParams();
+  p.set('limit', '500');
+  // Sort by Posted DESC by default — newest contracts first, the alpha-gen view.
+  p.set('sort', 'posted_desc');
+  // Freshness — only include awards posted within the chosen window.
+  const after = postedAfterDate();
+  if (after) {
+    p.set('posted_after', after);
+    p.set('require_posted', '1');  // exclude rows with unknown posted_date when filtering by recency
+  }
+  if (_levels.size > 0 && _levels.size < 4) p.set('level', [..._levels].join(','));
+  const minS = parseInt(document.getElementById('f-min-score').value) || 0;
+  const maxS = parseInt(document.getElementById('f-max-score').value) || 100;
+  if (minS > 0)   p.set('min_score', minS);
+  if (maxS < 100) p.set('max_score', maxS);
+  const ticker = document.getElementById('f-ticker').value.trim();
+  if (ticker) p.set('ticker', ticker);
+  const agency = document.getElementById('f-agency').value;
+  if (agency) p.set('agency', agency);
+  const source = document.getElementById('f-source').value;
+  if (source) p.set('source', source);
+  const sector = document.getElementById('f-sector').value;
+  if (sector) p.set('sector', sector);
+  if (_claudeOnly) p.set('has_claude', '1');
+
+  // Award amount: explicit range overrides preset
+  const minAmtM = parseFloat(document.getElementById('f-min-amount-m').value);
+  const maxAmtM = parseFloat(document.getElementById('f-max-amount-m').value);
+  if (!isNaN(minAmtM) && minAmtM > 0) p.set('min_amount', minAmtM * 1e6);
+  else if (_presets['50m']) p.set('min_amount', PRESET_50M_AMOUNT);
+  if (!isNaN(maxAmtM) && maxAmtM > 0) p.set('max_amount', maxAmtM * 1e6);
+
+  // Market cap: explicit range overrides preset
+  const minMCM = parseFloat(document.getElementById('f-min-mc-m').value);
+  const maxMCB = parseFloat(document.getElementById('f-max-mc-b').value);
+  const customCap = (!isNaN(minMCM) && minMCM > 0) || (!isNaN(maxMCB) && maxMCB > 0);
+  if (customCap) {
+    if (!isNaN(minMCM) && minMCM > 0) p.set('min_market_cap', minMCM * 1e6);
+    if (!isNaN(maxMCB) && maxMCB > 0) p.set('max_market_cap', maxMCB * 1e9);
+    p.set('require_market_cap', '1');
+  } else if (_presets['smid']) {
+    p.set('min_market_cap', PRESET_SMID_MIN);
+    p.set('max_market_cap', PRESET_SMID_MAX);
+    p.set('require_market_cap', '1');
+  }
+  return p;
+}
+
+function activeFilterTags() {
+  const tags = [];
+  if (_freshness !== 'all') {
+    const label = _freshness === '1' ? 'Posted: 24h' : `Posted: last ${_freshness}d`;
+    tags.push([label, () => setFreshness('all')]);
+  }
+  if (_presets['50m']) tags.push(['Award ≥ $50M', () => { _presets['50m']=false; document.getElementById('f-preset-50m').classList.remove('on'); applyFilters(); }]);
+  if (_presets['smid']) tags.push(['Small/Mid Cap', () => { _presets['smid']=false; document.getElementById('f-preset-smid').classList.remove('on'); applyFilters(); }]);
+  if (_levels.size < 4) tags.push([`Level: ${[..._levels].join(',')||'none'}`, () => { ['RED','ORANGE','YELLOW','WATCH'].forEach(l=>{_levels.add(l);document.querySelector(`.level-pill[data-lvl="${l}"]`).classList.add('on');}); applyFilters(); }]);
+  const minS = parseInt(document.getElementById('f-min-score').value)||0;
+  const maxS = parseInt(document.getElementById('f-max-score').value)||100;
+  if (minS>0||maxS<100) tags.push([`Score: ${minS}–${maxS}`, ()=>{document.getElementById('f-min-score').value=0;document.getElementById('f-max-score').value=100;applyFilters();}]);
+  const t = document.getElementById('f-ticker').value.trim();
+  if (t) tags.push([`Ticker: ${t}`, ()=>{document.getElementById('f-ticker').value='';applyFilters();}]);
+  const ag = document.getElementById('f-agency').value;
+  if (ag) tags.push([`Agency`, ()=>{document.getElementById('f-agency').value='';applyFilters();}]);
+  const src = document.getElementById('f-source').value;
+  if (src) tags.push([`Source: ${src}`, ()=>{document.getElementById('f-source').value='';applyFilters();}]);
+  const sec = document.getElementById('f-sector').value;
+  if (sec) tags.push([`Sector: ${sec}`, ()=>{document.getElementById('f-sector').value='';applyFilters();}]);
+  const minAmtM = parseFloat(document.getElementById('f-min-amount-m').value);
+  const maxAmtM = parseFloat(document.getElementById('f-max-amount-m').value);
+  if ((!isNaN(minAmtM)&&minAmtM>0)||(!isNaN(maxAmtM)&&maxAmtM>0)) {
+    const lo = !isNaN(minAmtM)&&minAmtM>0 ? '$'+minAmtM+'M' : 'any';
+    const hi = !isNaN(maxAmtM)&&maxAmtM>0 ? '$'+maxAmtM+'M' : 'any';
+    tags.push([`Award: ${lo}–${hi}`, ()=>{document.getElementById('f-min-amount-m').value='';document.getElementById('f-max-amount-m').value='';applyFilters();}]);
+  }
+  const minMCM = parseFloat(document.getElementById('f-min-mc-m').value);
+  const maxMCB = parseFloat(document.getElementById('f-max-mc-b').value);
+  if ((!isNaN(minMCM)&&minMCM>0)||(!isNaN(maxMCB)&&maxMCB>0)) {
+    const lo = !isNaN(minMCM)&&minMCM>0 ? '$'+minMCM+'M' : 'any';
+    const hi = !isNaN(maxMCB)&&maxMCB>0 ? '$'+maxMCB+'B' : 'any';
+    tags.push([`MktCap: ${lo}–${hi}`, ()=>{document.getElementById('f-min-mc-m').value='';document.getElementById('f-max-mc-b').value='';applyFilters();}]);
+  }
+  if (_claudeOnly) tags.push(['Claude only', ()=>{_claudeOnly=false;document.getElementById('f-claude-btn').classList.remove('on');applyFilters();}]);
+  return tags;
+}
+
+// ── Data ──────────────────────────────────────────────────
+
+let _alerts = [];
+let _stats  = {};
+let _expandedRow = null;
+let _sortKey = null;
+let _sortDir = 1;
+let _chartsLoaded = false;
+let _chartScores = null;
+let _chartLevels = null;
+let _chartTicker = null;
+
+async function refreshAll() {
+  document.getElementById('last-refresh-label').textContent = 'Refreshing…';
+  _chartsLoaded = false;
+
+  const [statsData, filterOpts] = await Promise.all([
+    fetch('/api/stats').then(r=>r.json()).catch(()=>null),
+    fetch('/api/filter-options').then(r=>r.json()).catch(()=>null),
+  ]);
+
+  _stats = statsData || {};
+  renderStats(_stats);
+  refreshClaudeButton();
+  if (filterOpts) populateFilterDropdowns(filterOpts);
+  await applyFilters();
+
+  document.getElementById('last-refresh-label').textContent =
+    'Updated ' + new Date().toLocaleTimeString();
+}
+
+async function applyFilters() {
+  const container = document.getElementById('alerts-container');
+  container.innerHTML = '<div class="loading"><div class="spinner"></div> Filtering…</div>';
+
+  const params = buildParams();
+  _alerts = await fetch('/api/alerts?' + params).then(r=>r.json()).catch(()=>[]);
+  _expandedRow = null;
+
+  renderAlerts(_alerts);
+  renderFilterStatus();
+  renderFreshnessNote();
+}
+
+function renderFreshnessNote() {
+  const note = document.getElementById('freshness-note');
+  if (!note) return;
+  const n = _alerts.length;
+  if (_freshness === 'all') {
+    note.textContent = `${n} total alerts in this view`;
+    note.style.color = '';
+    return;
+  }
+  const lbl = _freshness === '1' ? 'last 24h' : `last ${_freshness}d`;
+  if (n === 0) {
+    note.innerHTML = `<span style="color:var(--orange)">0 fresh alerts in ${lbl}</span> — run <code style="color:var(--amber)">scan-sam</code> or <code style="color:var(--amber)">scan-defense</code> for real-time signal (USAspending lags 1–3 days).`;
+  } else {
+    note.textContent = `${n} alerts in ${lbl}`;
+  }
+}
+
+// ── Filter options ────────────────────────────────────────
+
+function populateFilterDropdowns(opts) {
+  const agSel = document.getElementById('f-agency');
+  const currentAg = agSel.value;
+  agSel.innerHTML = '<option value="">All agencies</option>' +
+    (opts.agencies||[]).map(a => `<option value="${esc(a)}">${esc(a)}</option>`).join('');
+  agSel.value = currentAg;
+
+  const srcSel = document.getElementById('f-source');
+  const currentSrc = srcSel.value;
+  srcSel.innerHTML = '<option value="">All sources</option>' +
+    (opts.sources||[]).map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
+  srcSel.value = currentSrc;
+
+  const secSel = document.getElementById('f-sector');
+  const currentSec = secSel.value;
+  secSel.innerHTML = '<option value="">All sectors</option>' +
+    (opts.sectors||[]).map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
+  secSel.value = currentSec;
+}
+
+function renderFilterStatus() {
+  const tags = activeFilterTags();
+  const statusEl = document.getElementById('filter-status');
+  if (!tags.length) { statusEl.innerHTML = ''; return; }
+  statusEl.innerHTML = 'Active: ' + tags.map(([label, fn], i) =>
+    `<span class="active-filter-tag" onclick="_clearTag(${i})">${esc(label)} ×</span>`
+  ).join('');
+  window._filterTagFns = tags.map(([,fn])=>fn);
+}
+window._clearTag = (i) => { window._filterTagFns[i](); };
+
+// ── Stats ─────────────────────────────────────────────────
+
+function renderStats(s) {
+  const strip = document.getElementById('stats-strip');
+  if (!s || !Object.keys(s).length) { strip.innerHTML='<div class="empty">No data</div>'; return; }
+  const lvl = s.by_level || {};
+  strip.innerHTML = [
+    stat('Total Alerts',    s.total_alerts,               ''),
+    stat('RED',             lvl.RED||0,                   'highest urgency', 'color:var(--red)'),
+    stat('ORANGE',          lvl.ORANGE||0,                'high urgency', 'color:var(--orange)'),
+    stat('YELLOW / WATCH',  (lvl.YELLOW||0)+'/'+(lvl.WATCH||0), 'monitor'),
+    stat('Avg Score',       (s.avg_score||0)+'',          '/ 100'),
+    stat('Tickers',         s.unique_tickers||0,          'distinct companies'),
+    stat('Claude Enriched', s.claude_enriched||0,         'w/ AI analysis'),
+    stat('Contract Value',  fmt(s.total_contract_value),  'sum all awards'),
+  ].join('');
+}
+
+function stat(label, value, sub, style='') {
+  return `<div class="stat-card"><div class="stat-label">${label}</div>
+    <div class="stat-value" style="${style}">${esc(String(value))}</div>
+    ${sub ? `<div class="stat-sub">${esc(sub)}</div>` : ''}</div>`;
+}
+
+// ── Alert table ───────────────────────────────────────────
+
+const SORT_FIELDS = {
+  score:  a => a.materiality_score,
+  amount: a => a.award_amount || 0,
+  mktcap: a => a.market_cap || 0,
+  ratio:  a => (a.award_amount && a.market_cap) ? a.award_amount/a.market_cap : 0,
+  // "Posted" column sorts on posted_date with award_date as fallback.
+  posted: a => a.posted_date || a.award_date || '',
+  // "Detected" sorts on the local DB created_at.
+  detected: a => a.created_at || '',
+  ticker: a => a.ticker || '',
+};
+
+// Format a YYYY-MM-DD date string for table display.
+function fmtDate(str) {
+  if (!str) return '—';
+  return String(str).slice(0, 10);
+}
+
+function sortBy(key) {
+  if (_sortKey === key) _sortDir *= -1;
+  else { _sortKey = key; _sortDir = -1; }
+  renderAlerts(_alerts);
+}
+
+function renderAlerts(alerts) {
+  const container = document.getElementById('alerts-container');
+  document.getElementById('alert-count').textContent = alerts.length + ' results';
+
+  if (!alerts.length) {
+    container.innerHTML = `<div class="empty">
+      No alerts match the current filters.<br>
+      <span style="color:var(--text-dim);font-size:11px">
+        Try widening a range, removing a search term, or
+        <a href="javascript:void(0)" onclick="resetFilters()" style="color:var(--amber)">reset to defaults</a>.
+      </span>
+    </div>`;
+    return;
+  }
+
+  let data = [...alerts];
+  if (_sortKey && SORT_FIELDS[_sortKey]) {
+    const fn = SORT_FIELDS[_sortKey];
+    data.sort((a,b) => _sortDir * (fn(b) < fn(a) ? -1 : fn(b) > fn(a) ? 1 : 0));
+  }
+
+  function sortTh(label, key, title='') {
+    const cls = _sortKey===key ? (_sortDir<0?'desc':'asc') : '';
+    const tip = title ? ` title="${esc(title)}"` : '';
+    return `<th onclick="sortBy('${key}')"${tip}>${label}<span class="sort-arrow ${cls} ${_sortKey===key?'active':''}"></span></th>`;
+  }
+
+  const rows = data.map((a,i) => alertRow(a, i)).join('');
+
+  container.innerHTML = `
+    <table class="alerts-table">
+      <thead><tr>
+        <th style="width:22px"></th>
+        <th>Level</th>
+        ${sortTh('Score','score')}
+        ${sortTh('Ticker','ticker')}
+        <th>Awardee</th>
+        ${sortTh('Award','amount')}
+        ${sortTh('Mkt Cap','mktcap')}
+        ${sortTh('Awd/MC','ratio')}
+        <th>Sector</th>
+        <th>Agency</th>
+        ${sortTh('Posted','posted','When the source (SAM.gov / Defense.gov / USAspending) originally published the award notice. Falls back to award_date if posted_date is missing.')}
+      </tr></thead>
+      <tbody id="alerts-tbody">${rows}</tbody>
+    </table>`;
+}
+
+function alertRow(a, i) {
+  const idiqTag = a.is_idiq ? '<span class="flag-tag flag-IDIQ">IDIQ</span>' : '';
+  const modTag  = a.is_modification ? '<span class="flag-tag flag-MOD">MOD</span>' : '';
+  const freshTag = freshBadge(a.posted_date || a.award_date);
+  const ratioVal = pct(a.award_amount, a.market_cap);
+  const ratioCls = pctClass(a.award_amount, a.market_cap);
+  const sectorHtml = a.sector ? `<span class="sector-badge">${esc(a.sector)}</span>` : '<span style="color:var(--text-mute);font-size:11px">—</span>';
+
+  return `<tr class="data-row" data-idx="${i}" onclick="toggleExpand(${i})">
+    <td><span class="chevron">›</span></td>
+    <td><span class="level-badge level-${esc(a.alert_level)}">${esc(a.alert_level)}</span></td>
+    <td><div class="score-bar-wrap">
+      <div class="score-bar-bg"><div class="score-bar-fill" style="width:${a.materiality_score}%"></div></div>
+      <span class="score-num">${a.materiality_score}</span>
+    </div></td>
+    <td class="ticker-cell">${esc(a.ticker)}${freshTag}${idiqTag}${modTag}</td>
+    <td><div class="awardee-cell" title="${esc(a.awardee_name_raw)}">${esc(a.awardee_name_raw)}</div></td>
+    <td class="amount-cell">${fmt(a.award_amount)}</td>
+    <td class="mktcap-cell">${fmt(a.market_cap)}</td>
+    <td class="ratio-cell ${ratioCls}">${ratioVal}</td>
+    <td>${sectorHtml}</td>
+    <td class="agency-cell" title="${esc(a.agency)}">${esc(a.agency)}</td>
+    <td class="date-cell" title="Posted: ${esc(a.posted_date||'—')}\nAward date: ${esc(a.award_date||'—')}\nDetected (local scan): ${esc(ts(a.created_at))}">${fmtDate(a.posted_date || a.award_date)}</td>
+  </tr>
+  <tr class="expand-row" id="expand-${i}" style="display:none">
+    <td colspan="11">${expandPane(a)}</td>
+  </tr>`;
+}
+
+function expandPane(a) {
+  // ── Pane 1: Scoring + contract meta
+  const reasons = (a.reasons||[]).map(r=>`<li>${esc(r)}</li>`).join('');
+  const metaItems = [
+    ['Obligated',  fmt(a.obligated_amount)],
+    ['Source',     esc(a.source)],
+    ['Posted',     a.posted_date||'—'],
+    ['Award Date', a.award_date||'—'],
+    ['Detected',   ts(a.created_at)],
+    ['Type',       esc(a.award_type)||'—'],
+    ['NAICS',      esc(a.naics)||'—'],
+    ['PSC',        esc(a.psc)||'—'],
+    a.source_url ? ['URL', `<a href="${esc(a.source_url)}" target="_blank" rel="noopener">Open ↗</a>`] : null,
+  ].filter(Boolean).map(([k,v])=>`<div class="meta-item"><div class="meta-k">${k}</div><div class="meta-v">${v}</div></div>`).join('');
+
+  // ── Pane 2: Company metrics
+  const awdMC    = pct(a.award_amount,    a.market_cap);
+  const awdRev   = pct(a.award_amount,    a.trailing_revenue);
+  const oblMC    = pct(a.obligated_amount, a.market_cap);
+  const oblRev   = pct(a.obligated_amount, a.trailing_revenue);
+  const awdMCCls = pctClass(a.award_amount, a.market_cap);
+
+  const hasCompany = a.market_cap || a.trailing_revenue || a.price;
+  const companyHtml = hasCompany ? `
+    <div class="kv-grid">
+      <span class="kv-k">Company</span>     <span class="kv-v">${esc(a.company_name)||esc(a.ticker)}</span>
+      <span class="kv-k">Market Cap</span>  <span class="kv-v">${fmt(a.market_cap)}</span>
+      <span class="kv-k">Revenue TTM</span> <span class="kv-v">${fmt(a.trailing_revenue)}</span>
+      <span class="kv-k">Price</span>       <span class="kv-v">${a.price ? '$'+Number(a.price).toFixed(2) : 'N/A'}</span>
+      <span class="kv-k">Avg Vol</span>     <span class="kv-v">${fmtVol(a.avg_volume)}</span>
+      <span class="kv-k">Sector</span>      <span class="kv-v">${esc(a.sector)||'—'}</span>
+      <span class="kv-k">Industry</span>    <span class="kv-v">${esc(a.industry)||'—'}</span>
+      <span class="kv-k">Exchange</span>    <span class="kv-v">${esc(a.exchange)||'—'}</span>
+    </div>
+    <div class="meta-row">
+      <div class="meta-item"><div class="meta-k">Award / Mkt Cap</div><div class="meta-v ${awdMCCls}" style="font-size:14px;font-weight:700">${awdMC}</div></div>
+      <div class="meta-item"><div class="meta-k">Award / Revenue</div><div class="meta-v">${awdRev}</div></div>
+      <div class="meta-item"><div class="meta-k">Oblg / Mkt Cap</div><div class="meta-v">${oblMC}</div></div>
+      <div class="meta-item"><div class="meta-k">Oblg / Revenue</div><div class="meta-v">${oblRev}</div></div>
+    </div>` :
+    `<div class="no-claude">No company data. Ticker may be UNRESOLVED or market data not fetched yet.</div>`;
+
+  // ── Pane 3: Claude analysis
+  let claudeHtml = '';
+  if (!a.claude) {
+    claudeHtml = `<div class="no-claude">No Claude analysis — alert predates enrichment or API key not configured.</div>`;
+  } else {
+    const c = a.claude;
+    const confCls   = {high:'conf-high', medium:'conf-med', low:'conf-low'}[c.resolver_confidence] || '';
+    const confLabel = {high:'HIGH ✓', medium:'MED', low:'LOW ⚠'}[c.resolver_confidence] || '?';
+    const qLabel    = {real_revenue:'Real Revenue', idiq_ceiling:'IDIQ Ceiling', modification:'Modification', unclear:'Unclear'}[c.contract_quality] || c.contract_quality;
+    const flags = (c.watch_flags||[]).map(f=>`<div class="watch-flag">${esc(f)}</div>`).join('');
+    const narrative = c.materiality_narrative
+      ? `<div class="claude-field"><div class="claude-key">Narrative</div><div class="claude-val narrative">${esc(c.materiality_narrative)}</div></div>` : '';
+    claudeHtml = `<div class="claude-grid">
+      <div class="claude-field">
+        <div class="claude-key">Resolver</div>
+        <div class="claude-val"><span class="${confCls}">${confLabel}</span> &nbsp;<span style="color:var(--text-mute);font-size:10.5px">${esc(c.resolver_note)}</span></div>
+      </div>
+      <div class="claude-field">
+        <div class="claude-key">Quality</div>
+        <div class="claude-val"><span class="quality-pill q-${esc(c.contract_quality)}">${esc(qLabel)}</span> &nbsp;<span style="color:var(--text-mute);font-size:10.5px">${esc(c.quality_note)}</span></div>
+      </div>
+      ${narrative}
+      ${flags ? `<div class="claude-field"><div class="claude-key">Flags</div><div class="claude-val"><div class="watch-flags">${flags}</div></div></div>` : ''}
+    </div>`;
+  }
+
+  return `<div class="expand-inner">
+    <div class="expand-pane">
+      <div class="expand-subtitle">Scoring Reasons</div>
+      <ul class="reason-list">${reasons}</ul>
+      <div class="meta-row">${metaItems}</div>
+    </div>
+    <div class="expand-pane">
+      <div class="expand-subtitle">Company Metrics</div>
+      ${companyHtml}
+    </div>
+    <div class="expand-pane">
+      <div class="expand-subtitle">Claude Analysis</div>
+      ${claudeHtml}
+    </div>
+  </div>`;
+}
+
+function toggleExpand(idx) {
+  const dataRow   = document.querySelector(`.data-row[data-idx="${idx}"]`);
+  const expandRow = document.getElementById(`expand-${idx}`);
+  if (_expandedRow !== null && _expandedRow !== idx) {
+    const prev = document.querySelector(`.data-row[data-idx="${_expandedRow}"]`);
+    if (prev) prev.classList.remove('expanded');
+    const prevExp = document.getElementById(`expand-${_expandedRow}`);
+    if (prevExp) prevExp.style.display = 'none';
+  }
+  if (_expandedRow === idx) {
+    dataRow.classList.remove('expanded');
+    expandRow.style.display = 'none';
+    _expandedRow = null;
+  } else {
+    dataRow.classList.add('expanded');
+    expandRow.style.display = '';
+    _expandedRow = idx;
+  }
+}
+
+// ── Companies page ────────────────────────────────────────
+
+async function loadCompanies() {
+  const container = document.getElementById('companies-container');
+  container.innerHTML = '<div class="loading"><div class="spinner"></div> Loading…</div>';
+
+  const rows = await fetch('/api/companies').then(r=>r.json()).catch(()=>[]);
+  document.getElementById('co-count').textContent = rows.length + ' companies';
+
+  if (!rows.length) {
+    container.innerHTML = '<div class="empty">No company data yet. Run a scan to populate.</div>';
+    return;
+  }
+
+  const trs = rows.map(r => {
+    const awdMC  = pct(r.total_awarded, r.market_cap);
+    const awdRev = pct(r.total_awarded, r.trailing_revenue);
+    const mcCls  = pctClass(r.total_awarded, r.market_cap);
+    const sector = r.sector ? `<span class="sector-badge">${esc(r.sector)}</span>` : '—';
+    return `<tr>
+      <td class="ticker-cell">${esc(r.ticker)}</td>
+      <td>${esc(r.company_name)}</td>
+      <td>${sector}</td>
+      <td style="font-size:10.5px;color:var(--text-mute)">${esc(r.industry||'')}</td>
+      <td class="r">${fmt(r.market_cap)}</td>
+      <td class="r">${fmt(r.trailing_revenue)}</td>
+      <td class="r">${r.price ? '$'+Number(r.price).toFixed(2) : '—'}</td>
+      <td class="r">${fmtVol(r.avg_volume)}</td>
+      <td class="r" style="font-weight:600">${fmt(r.total_awarded)}</td>
+      <td class="r ${mcCls}">${awdMC}</td>
+      <td class="r">${awdRev}</td>
+      <td class="r" style="color:var(--amber);font-family:var(--mono)">${r.alert_count}</td>
+      <td class="r" style="color:var(--amber);font-family:var(--mono)">${r.max_score||'—'}</td>
+      <td style="font-size:10.5px;color:var(--text-mute);font-family:var(--mono)">${r.last_market_data_refresh ? r.last_market_data_refresh.slice(0,10) : '—'}</td>
+    </tr>`;
+  }).join('');
+
+  container.innerHTML = `
+    <table class="co-table">
+      <thead><tr>
+        <th>Ticker</th>
+        <th>Company</th>
+        <th>Sector</th>
+        <th>Industry</th>
+        <th class="r">Mkt Cap</th>
+        <th class="r">Revenue TTM</th>
+        <th class="r">Price</th>
+        <th class="r">Avg Vol</th>
+        <th class="r">Total Awarded</th>
+        <th class="r">Awd/MC</th>
+        <th class="r">Awd/Rev</th>
+        <th class="r">Alerts</th>
+        <th class="r">Max Score</th>
+        <th>Data Refreshed</th>
+      </tr></thead>
+      <tbody>${trs}</tbody>
+    </table>`;
+}
+
+// ── Charts ────────────────────────────────────────────────
+
+const CHART_BASE = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: { legend: { display: false } },
+  scales: {
+    x: { grid:{color:'#1e2130'}, ticks:{color:'#7a8099',font:{family:"'JetBrains Mono',monospace",size:9}} },
+    y: { grid:{color:'#1e2130'}, ticks:{color:'#7a8099',font:{family:"'JetBrains Mono',monospace",size:9}}, beginAtZero:true },
+  },
+};
+
+async function loadCharts() {
+  if (_chartsLoaded) return;
+  _chartsLoaded = true;
+
+  const [scores, tickerVal] = await Promise.all([
+    fetch('/api/charts/scores').then(r=>r.json()).catch(()=>null),
+    fetch('/api/charts/ticker-value').then(r=>r.json()).catch(()=>null),
+  ]);
+
+  // Histogram
+  if (scores) {
+    if (_chartScores) _chartScores.destroy();
+    _chartScores = new Chart(document.getElementById('chart-scores').getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: scores.labels,
+        datasets: [{
+          data: scores.counts,
+          backgroundColor: scores.counts.map((_,i) => ['#e05252','#e08a3c','#d4b84a','#f5a623'][Math.min(Math.floor(i/2.5),3)] + '33'),
+          borderColor:     scores.counts.map((_,i) => ['#e05252','#e08a3c','#d4b84a','#f5a623'][Math.min(Math.floor(i/2.5),3)]),
+          borderWidth: 1, borderRadius: 3,
+        }],
+      },
+      options: CHART_BASE,
+    });
+  }
+
+  // Level donut
+  const lvl = _stats.by_level || {};
+  if (_chartLevels) _chartLevels.destroy();
+  _chartLevels = new Chart(document.getElementById('chart-levels').getContext('2d'), {
+    type: 'doughnut',
+    data: {
+      labels: ['RED','ORANGE','YELLOW','WATCH'],
+      datasets: [{
+        data: [lvl.RED||0, lvl.ORANGE||0, lvl.YELLOW||0, lvl.WATCH||0],
+        backgroundColor: ['#e0525233','#e08a3c33','#d4b84a33','#4ab8d433'],
+        borderColor:     ['#e05252',  '#e08a3c',  '#d4b84a',  '#4ab8d4'],
+        borderWidth: 1.5, hoverOffset: 4,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '68%',
+      plugins: { legend: { display:true, position:'right', labels:{color:'#7a8099',font:{size:11},boxWidth:10} } },
+    },
+  });
+
+  // Ticker value bar
+  if (tickerVal && tickerVal.tickers.length) {
+    if (_chartTicker) _chartTicker.destroy();
+    _chartTicker = new Chart(document.getElementById('chart-ticker-value').getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: tickerVal.tickers,
+        datasets: [{
+          data: tickerVal.totals,
+          backgroundColor: '#f5a62322',
+          borderColor: '#f5a623',
+          borderWidth: 1, borderRadius: 3,
+        }],
+      },
+      options: {
+        ...CHART_BASE,
+        indexAxis: 'y',
+        plugins: { legend:{display:false}, tooltip:{callbacks:{label: ctx => fmt(ctx.raw)}} },
+        scales: {
+          x: { ...CHART_BASE.scales.x, ticks:{...CHART_BASE.scales.x.ticks, callback: v => fmt(v)} },
+          y: { ...CHART_BASE.scales.y },
+        },
+      },
+    });
+  }
+}
+
+// ── Sources ───────────────────────────────────────────────
+
+async function loadSources() {
+  const container = document.getElementById('sources-container');
+  container.innerHTML = '<div class="loading"><div class="spinner"></div> Loading…</div>';
+  const rows = await fetch('/api/source-runs?limit=80').then(r=>r.json()).catch(()=>[]);
+  document.getElementById('source-count').textContent = rows.length + ' runs';
+  if (!rows.length) {
+    container.innerHTML = '<div class="empty">No source runs recorded yet.</div>';
+    return;
+  }
+  const trs = rows.map(r => {
+    const dur = r.finished_at && r.started_at
+      ? Math.round((new Date(r.finished_at)-new Date(r.started_at))/1000) + 's' : '—';
+    const statusCls = {success:'status-success',error:'status-error',running:'status-running'}[r.status]||'';
+    return `<tr>
+      <td style="font-family:var(--mono);color:var(--amber)">${esc(r.source)}</td>
+      <td><span class="status-badge ${statusCls}">${esc(r.status)}</span></td>
+      <td style="font-family:var(--mono);color:var(--text-dim)">${ts(r.started_at)}</td>
+      <td style="font-family:var(--mono);color:var(--text-dim)">${dur}</td>
+      <td style="font-family:var(--mono);color:var(--text-dim)">${r.records_seen}</td>
+      <td style="font-family:var(--mono);color:var(--text-dim)">${r.records_inserted}</td>
+      <td style="font-family:var(--mono);color:var(--text-dim)">${r.records_updated}</td>
+      <td style="color:var(--red);font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.error_message)}">${esc(r.error_message)||''}</td>
+    </tr>`;
+  }).join('');
+  container.innerHTML = `
+    <table class="source-table">
+      <thead><tr><th>Source</th><th>Status</th><th>Started</th><th>Duration</th><th>Seen</th><th>Inserted</th><th>Updated</th><th>Error</th></tr></thead>
+      <tbody>${trs}</tbody>
+    </table>`;
+}
+
+// ── Init ──────────────────────────────────────────────────
+refreshAll();
+</script>
+</body>
+</html>

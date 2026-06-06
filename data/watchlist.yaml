@@ -1,0 +1,14 @@
+# Watchlist — tickers to always alert on regardless of market cap ceiling.
+# Add tickers here for companies you always want to monitor.
+
+tickers:
+  - KTOS
+  - PLTR
+  - RCAT
+  - JOBY
+  - ACHR
+  - ASTS
+  - SPIR
+  - BWXT
+  - CEVA
+  - MVIS

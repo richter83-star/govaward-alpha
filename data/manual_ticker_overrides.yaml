@@ -1,0 +1,79 @@
+overrides:
+  accenture federal services:
+    parent_company_name: Accenture plc
+    ticker: ACN
+  aecom:
+    parent_company_name: AECOM
+    ticker: ACM
+  anduril industries:
+    parent_company_name: Anduril Industries (private)
+    ticker: null
+  booz allen hamilton:
+    parent_company_name: Booz Allen Hamilton Holding Corporation
+    ticker: BAH
+  caci inc federal:
+    parent_company_name: CACI International Inc.
+    ticker: CACI
+  caci international:
+    parent_company_name: CACI International Inc.
+    ticker: CACI
+  gdit:
+    parent_company_name: General Dynamics Corporation
+    ticker: GD
+  general dynamics information technology:
+    parent_company_name: General Dynamics Corporation
+    ticker: GD
+  ibm corporation:
+    parent_company_name: International Business Machines Corporation
+    ticker: IBM
+  ibm federal:
+    parent_company_name: International Business Machines Corporation
+    ticker: IBM
+  kratos defense & security solutions:
+    parent_company_name: Kratos Defense & Security Solutions, Inc.
+    ticker: KTOS
+  kratos defense and security solutions:
+    parent_company_name: Kratos Defense & Security Solutions, Inc.
+    ticker: KTOS
+  kratos defense security solutions:
+    parent_company_name: Kratos Defense & Security Solutions, Inc.
+    ticker: KTOS
+  leidos:
+    parent_company_name: Leidos Holdings, Inc.
+    ticker: LDOS
+  leidos inc:
+    parent_company_name: Leidos Holdings, Inc.
+    ticker: LDOS
+  mantech international:
+    parent_company_name: ManTech International Corporation
+    ticker: MANT
+  palantir usg inc:
+    parent_company_name: Palantir Technologies Inc.
+    ticker: PLTR
+  parsons:
+    parent_company_name: Parsons Corporation
+    ticker: PSN
+  parsons corporation:
+    parent_company_name: Parsons Corporation
+    ticker: PSN
+  perspecta:
+    parent_company_name: Leidos Holdings, Inc.
+    ticker: LDOS
+  saic:
+    parent_company_name: Science Applications International Corporation
+    ticker: SAIC
+  science applications international:
+    parent_company_name: Science Applications International Corporation
+    ticker: SAIC
+  shield ai:
+    parent_company_name: Shield AI (private)
+    ticker: null
+  unison industries:
+    parent_company_name: GE Aerospace
+    ticker: GE
+  v2x:
+    parent_company_name: V2X, Inc.
+    ticker: VVX
+  vectrus systems:
+    parent_company_name: V2X, Inc.
+    ticker: VVX
