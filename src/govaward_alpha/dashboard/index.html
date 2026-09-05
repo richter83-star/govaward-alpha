@@ -1086,8 +1086,8 @@
             <button class="preset-toggle" id="f-preset-smid" onclick="togglePreset('smid')">
               <span class="preset-check">✓</span> SMID Cap
             </button>
-            <button class="preset-toggle" id="f-claude-btn" onclick="toggleClaudeFilter()">
-              Claude AI <span class="badge-count" id="f-claude-count">0</span>
+            <button class="preset-toggle" id="f-gemini-btn" onclick="toggleGeminiFilter()" title="Filter alerts with Gemini AI analysis">
+              ✦ Gemini AI <span class="badge-count" id="f-gemini-count">0</span>
             </button>
           </div>
 
@@ -1457,6 +1457,7 @@ function focusSearch() {
 // ── Filter State & Compact Controls ────────────────────────
 
 const _levels = new Set(['RED','ORANGE','YELLOW','WATCH']);
+let _geminiOnly = false;
 let _claudeOnly = false;
 const _presets = { '50m': false, 'smid': false };
 let _freshness = 'all';
@@ -1538,29 +1539,33 @@ function toggleLevel(lvl) {
   applyFilters();
 }
 
-function toggleClaudeFilter() {
-  const claudeCount = (_stats && _stats.claude_enriched) || 0;
-  const btn = document.getElementById('f-claude-btn');
-  if (claudeCount === 0) {
-    showToast('No alerts have Claude AI analysis yet. Configure ANTHROPIC_API_KEY to enable.', 'info');
+function toggleGeminiFilter() {
+  const count = (_stats && (_stats.gemini_enriched || _stats.claude_enriched)) || 0;
+  const btn = document.getElementById('f-gemini-btn');
+  if (count === 0) {
+    showToast('No alerts have Gemini AI analysis yet. Configure GEMINI_API_KEY in .env to enable.', 'info');
     return;
   }
-  _claudeOnly = !_claudeOnly;
-  btn.classList.toggle('on', _claudeOnly);
+  _geminiOnly = !_geminiOnly;
+  btn.classList.toggle('on', _geminiOnly);
   applyFilters();
 }
 
-function refreshClaudeButton() {
-  const btn = document.getElementById('f-claude-btn');
-  const count = (_stats && _stats.claude_enriched) || 0;
-  document.getElementById('f-claude-count').textContent = count;
+function refreshGeminiButton() {
+  const btn = document.getElementById('f-gemini-btn');
+  if (!btn) return;
+  const count = (_stats && (_stats.gemini_enriched || _stats.claude_enriched)) || 0;
+  const countBadge = document.getElementById('f-gemini-count');
+  if (countBadge) countBadge.textContent = count;
   if (count === 0) {
     btn.classList.add('disabled');
-    if (_claudeOnly) { _claudeOnly = false; btn.classList.remove('on'); }
+    if (_geminiOnly) { _geminiOnly = false; btn.classList.remove('on'); }
   } else {
     btn.classList.remove('disabled');
   }
 }
+const toggleClaudeFilter = toggleGeminiFilter;
+const refreshClaudeButton = refreshGeminiButton;
 
 function onAmountChange() {
   const minVal = document.getElementById('f-min-amount-m').value;
@@ -1644,7 +1649,7 @@ function buildParams() {
   const sector = document.getElementById('f-sector').value;
   if (sector) p.set('sector', sector);
 
-  if (_claudeOnly) p.set('claude_only', '1');
+  if (_geminiOnly || _claudeOnly) p.set('has_gemini', '1');
 
   const after = postedAfterDate();
   if (after) p.set('posted_after', after);
@@ -1662,7 +1667,7 @@ function activeFilterTags() {
   if (customMaxMC !== '') tags.push([`Cap ≤ $${customMaxMC}B`, () => { document.getElementById('f-max-mc-b').value=''; applyFilters(); }]);
   else if (_presets['smid']) tags.push(['SMID Cap', () => togglePreset('smid')]);
 
-  if (_claudeOnly) tags.push(['Claude', () => toggleClaudeFilter()]);
+  if (_geminiOnly || _claudeOnly) tags.push(['Gemini AI', () => toggleGeminiFilter()]);
   if (_freshness !== 'all') tags.push([_freshness === '1' ? '24h' : `${_freshness}d`, () => setFreshness('all')]);
 
   const ticker = document.getElementById('f-ticker').value.trim();
@@ -1698,8 +1703,10 @@ function resetFilters() {
   _presets['smid'] = false;
   document.getElementById('f-preset-smid').classList.remove('on');
 
+  _geminiOnly = false;
   _claudeOnly = false;
-  document.getElementById('f-claude-btn').classList.remove('on');
+  const gBtn = document.getElementById('f-gemini-btn') || document.getElementById('f-claude-btn');
+  if (gBtn) gBtn.classList.remove('on');
 
   setFreshness('all');
   updateFilterActiveCount();
@@ -1730,7 +1737,7 @@ async function refreshAll() {
 
   _stats = statsData || {};
   renderStats(_stats);
-  refreshClaudeButton();
+  refreshGeminiButton();
   if (filterOpts) populateFilterDropdowns(filterOpts);
   await applyFilters();
 
@@ -1798,7 +1805,7 @@ function renderStats(s) {
     statItem('Avg Score', (s.avg_award_score || s.avg_score || 0) + '', '/ 100'),
     statItem('Pipeline Flow', fmt(s.total_contract_value), `${s.total_awards_scanned||0} awards`, 'color:var(--green)'),
     statItem('Active Tickers', s.unique_award_tickers||s.unique_tickers||0, 'beneficiaries'),
-    statItem('AI Analysis', s.claude_enriched||0, 'enriched'),
+    statItem('AI Analysis', s.gemini_enriched||s.claude_enriched||0, 'enriched'),
   ].join('');
 }
 
@@ -1973,18 +1980,19 @@ function expandPane(a) {
     </div>` :
     `<div class="no-claude">Company market fundamentals not cached yet.</div>`;
 
-  let claudeHtml = '';
-  if (!a.claude) {
-    claudeHtml = `<div class="no-claude">No Claude AI analysis attached. Set ANTHROPIC_API_KEY to enrich high materiality alerts with automated thesis notes.</div>`;
+  const ai = a.gemini || a.claude;
+  let geminiHtml = '';
+  if (!ai) {
+    geminiHtml = `<div class="no-claude">No Gemini AI analysis attached. Set GEMINI_API_KEY in .env to enrich high materiality alerts with automated thesis notes.</div>`;
   } else {
-    const c = a.claude;
+    const c = ai;
     const confCls   = {high:'conf-high', medium:'conf-med', low:'conf-low'}[c.resolver_confidence] || '';
     const confLabel = {high:'HIGH ✓', medium:'MED', low:'LOW ⚠'}[c.resolver_confidence] || '?';
     const qLabel    = {real_revenue:'Real Revenue', idiq_ceiling:'IDIQ Ceiling', modification:'Modification', unclear:'Unclear'}[c.contract_quality] || c.contract_quality;
     const flags = (c.watch_flags||[]).map(f=>`<div class="watch-flag">${esc(f)}</div>`).join('');
     const narrative = c.materiality_narrative
       ? `<div class="claude-field"><div class="claude-key">Narrative</div><div class="claude-val narrative">${esc(c.materiality_narrative)}</div></div>` : '';
-    claudeHtml = `<div class="claude-grid">
+    geminiHtml = `<div class="claude-grid">
       <div class="claude-field">
         <div class="claude-key">Resolver</div>
         <div class="claude-val"><span class="${confCls}">${confLabel}</span> &nbsp;<span style="color:var(--text-mute);font-size:10.5px">${esc(c.resolver_note)}</span></div>
@@ -2009,8 +2017,8 @@ function expandPane(a) {
       ${companyHtml}
     </div>
     <div class="expand-pane">
-      <div class="expand-subtitle">AI Catalyst Thesis</div>
-      ${claudeHtml}
+      <div class="expand-subtitle">✦ Gemini AI Catalyst Thesis</div>
+      ${geminiHtml}
     </div>
   </div>`;
 }

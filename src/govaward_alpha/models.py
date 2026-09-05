@@ -102,6 +102,7 @@ class AlertRecord(BaseModel):
     sent_email: bool = False
     sent_telegram: bool = False
     sent_discord: bool = False
+    gemini_analysis_json: str = ""
     claude_analysis_json: str = ""
     created_at: datetime = Field(default_factory=utcnow)
 

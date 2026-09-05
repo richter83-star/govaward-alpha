@@ -371,6 +371,34 @@ def daily_report(
 
 
 # ---------------------------------------------------------------------------
+# backfill-gemini
+# ---------------------------------------------------------------------------
+
+@app.command("backfill-gemini")
+def backfill_gemini_cmd(
+    limit: Optional[int] = typer.Option(None, "--limit", "-n", help="Max alerts to enrich"),
+    sleep: float = typer.Option(0.5, "--sleep", "-s", help="Seconds to sleep between calls"),
+) -> None:
+    """Run Google Gemini analysis backfill on alerts lacking enrichment."""
+    _require_db()
+    from govaward_alpha.services.enrich_service import backfill_gemini_analysis
+    stats = backfill_gemini_analysis(limit=limit, sleep_seconds=sleep)
+    if stats.skipped_no_key:
+        console.print("[yellow]Skipped: GEMINI_API_KEY not configured in environment or .env.[/yellow]")
+    else:
+        console.print(f"[green]Gemini backfill complete:[/green] {stats.enriched} enriched, {stats.failed} failed out of {stats.candidates} candidates.")
+
+
+@app.command("backfill-claude", hidden=True)
+def backfill_claude_cmd(
+    limit: Optional[int] = typer.Option(None, "--limit", "-n"),
+    sleep: float = typer.Option(0.5, "--sleep", "-s"),
+) -> None:
+    """Legacy alias for backfill-gemini."""
+    backfill_gemini_cmd(limit=limit, sleep=sleep)
+
+
+# ---------------------------------------------------------------------------
 # dashboard
 # ---------------------------------------------------------------------------
 

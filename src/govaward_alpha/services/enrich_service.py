@@ -1,9 +1,9 @@
-"""Backfill Claude analysis on existing alerts.
+"""Backfill Google Gemini analysis on existing alerts.
 
-The normal alert pipeline only runs Claude enrichment when a NEW alert fires
+The normal alert pipeline only runs Gemini enrichment when a NEW alert fires
 (see ``services.alert_service.process_alert``). Alerts that were created
-before ``ANTHROPIC_API_KEY`` was configured therefore have an empty
-``claude_analysis_json`` column. This module backfills them.
+before ``GEMINI_API_KEY`` was configured therefore have an empty
+``gemini_analysis_json`` column. This module backfills them.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from dataclasses import dataclass
 
 from govaward_alpha import db
 from govaward_alpha.config import get_settings
-from govaward_alpha.enrich.claude_enricher import enrich as claude_enrich
+from govaward_alpha.enrich.gemini_enricher import enrich as gemini_enrich
 from govaward_alpha.models import Award, Company, ScoreResult
 
 logger = logging.getLogger(__name__)
@@ -97,11 +97,11 @@ def _row_to_score_result(r: sqlite3.Row) -> ScoreResult:
     )
 
 
-def backfill_claude_analysis(
+def backfill_gemini_analysis(
     limit: int | None = None,
     sleep_seconds: float = 0.5,
 ) -> EnrichStats:
-    """Run Claude enrichment on alerts that don't already have it.
+    """Run Google Gemini enrichment on alerts that don't already have it.
 
     Args:
         limit: Maximum number of alerts to enrich in this run (None = all).
@@ -111,9 +111,10 @@ def backfill_claude_analysis(
         EnrichStats describing what happened.
     """
     settings = get_settings()
-    if not settings.anthropic_api_key:
+    api_key = settings.gemini_api_key or settings.anthropic_api_key
+    if not api_key:
         logger.warning(
-            "ANTHROPIC_API_KEY not configured — skipping backfill. "
+            "GEMINI_API_KEY not configured — skipping backfill. "
             "Set it in .env and try again."
         )
         return EnrichStats(candidates=0, enriched=0, failed=0, skipped_no_key=True)
@@ -123,7 +124,8 @@ def backfill_claude_analysis(
                al.reasons_json, aw.*
         FROM alerts al
         JOIN awards aw ON al.award_id = aw.id
-        WHERE (al.claude_analysis_json IS NULL OR al.claude_analysis_json = '')
+        WHERE ((al.gemini_analysis_json IS NULL OR al.gemini_analysis_json = '')
+               AND (al.claude_analysis_json IS NULL OR al.claude_analysis_json = ''))
         ORDER BY al.created_at DESC
     """
     if limit and limit > 0:
@@ -133,11 +135,11 @@ def backfill_claude_analysis(
         rows = conn.execute(sql).fetchall()
         candidates = len(rows)
         if not candidates:
-            logger.info("No alerts need Claude enrichment — already up to date.")
+            logger.info("No alerts need Gemini enrichment — already up to date.")
             return EnrichStats(candidates=0, enriched=0, failed=0, skipped_no_key=False)
 
         logger.info(
-            "Backfilling Claude analysis for %d alert(s) (sleep=%.1fs between calls)",
+            "Backfilling Gemini analysis for %d alert(s) (sleep=%.1fs between calls)",
             candidates, sleep_seconds,
         )
 
@@ -148,7 +150,7 @@ def backfill_claude_analysis(
                 award = _row_to_award(r)
                 company = _row_to_company(conn, r["ticker"])
                 result = _row_to_score_result(r)
-                analysis = claude_enrich(award, company, result)
+                analysis = gemini_enrich(award, company, result)
                 if analysis is None:
                     failed += 1
                     logger.warning(
@@ -158,8 +160,8 @@ def backfill_claude_analysis(
                 else:
                     payload = json.dumps(analysis.to_dict())
                     conn.execute(
-                        "UPDATE alerts SET claude_analysis_json=? WHERE id=?",
-                        (payload, r["alert_id"]),
+                        "UPDATE alerts SET gemini_analysis_json=?, claude_analysis_json=? WHERE id=?",
+                        (payload, payload, r["alert_id"]),
                     )
                     conn.commit()
                     enriched += 1
@@ -185,3 +187,7 @@ def backfill_claude_analysis(
             failed=failed,
             skipped_no_key=False,
         )
+
+
+# Backward-compatible alias
+backfill_claude_analysis = backfill_gemini_analysis

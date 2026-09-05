@@ -7,7 +7,7 @@ import logging
 import sqlite3
 
 from govaward_alpha import db
-from govaward_alpha.enrich.claude_enricher import ClaudeAnalysis, enrich
+from govaward_alpha.enrich.gemini_enricher import GeminiAnalysis, enrich
 from govaward_alpha.models import AlertRecord, Award, Company, ScoreResult
 from govaward_alpha.notify import console, discord_notifier, email_notifier, telegram_notifier
 
@@ -22,29 +22,29 @@ def process_alert(
     result: ScoreResult,
 ) -> bool:
     """
-    Optionally enrich with Claude, persist an alert record, and dispatch to all configured channels.
+    Optionally enrich with Google Gemini, persist an alert record, and dispatch to all configured channels.
     Returns True if the alert was created.
     """
-    # Claude enrichment — runs before persistence so analysis is included in output
-    claude_analysis: ClaudeAnalysis | None = None
+    # Gemini enrichment — runs before persistence so analysis is included in output
+    gemini_analysis: GeminiAnalysis | None = None
     try:
-        claude_analysis = enrich(award, company, result)
-        if claude_analysis:
+        gemini_analysis = enrich(award, company, result)
+        if gemini_analysis:
             logger.info(
-                "Claude enrichment: resolver=%s quality=%s",
-                claude_analysis.resolver_confidence,
-                claude_analysis.contract_quality,
+                "Gemini enrichment: resolver=%s quality=%s",
+                gemini_analysis.resolver_confidence,
+                gemini_analysis.contract_quality,
             )
             # Low-confidence resolver match — demote but don't suppress entirely
-            if claude_analysis.resolver_confidence == "low":
+            if gemini_analysis.resolver_confidence == "low":
                 logger.warning(
-                    "Claude flagged low resolver confidence for %s ← %s: %s",
-                    award.ticker, award.awardee_name_raw, claude_analysis.resolver_note,
+                    "Gemini flagged low resolver confidence for %s ← %s: %s",
+                    award.ticker, award.awardee_name_raw, gemini_analysis.resolver_note,
                 )
     except Exception as exc:
-        logger.warning("Claude enrichment error: %s", exc)
+        logger.warning("Gemini enrichment error: %s", exc)
 
-    claude_json = json.dumps(claude_analysis.to_dict()) if claude_analysis else ""
+    gemini_json = json.dumps(gemini_analysis.to_dict()) if gemini_analysis else ""
 
     alert = AlertRecord(
         award_id=award_id,
@@ -52,7 +52,8 @@ def process_alert(
         materiality_score=result.score,
         alert_level=result.level,
         reasons_json=json.dumps(result.reasons),
-        claude_analysis_json=claude_json,
+        gemini_analysis_json=gemini_json,
+        claude_analysis_json=gemini_json,
     )
 
     alert_id = db.insert_alert(conn, alert)
@@ -60,7 +61,7 @@ def process_alert(
 
     # Console (always on)
     try:
-        console.print_alert(award, company, result, claude_analysis)
+        console.print_alert(award, company, result, gemini_analysis)
         db.mark_alert_sent(conn, alert_id, "console")
         conn.commit()
     except Exception as exc:

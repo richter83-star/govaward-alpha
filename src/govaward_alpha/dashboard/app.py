@@ -48,8 +48,10 @@ def stats() -> dict[str, Any]:
             "SELECT COUNT(DISTINCT ticker) FROM alerts WHERE ticker != 'UNRESOLVED'"
         ).fetchone()[0]
 
-        claude_enriched = conn.execute(
-            "SELECT COUNT(*) FROM alerts WHERE claude_analysis_json != '' AND claude_analysis_json IS NOT NULL"
+        gemini_enriched = conn.execute(
+            """SELECT COUNT(*) FROM alerts
+               WHERE (gemini_analysis_json != '' AND gemini_analysis_json IS NOT NULL)
+                  OR (claude_analysis_json != '' AND claude_analysis_json IS NOT NULL)"""
         ).fetchone()[0]
 
         award_levels_raw = conn.execute(
@@ -82,7 +84,8 @@ def stats() -> dict[str, Any]:
             "total_contract_value": total_value,
             "unique_tickers": unique_tickers,
             "unique_award_tickers": unique_award_tickers,
-            "claude_enriched": claude_enriched,
+            "gemini_enriched": gemini_enriched,
+            "claude_enriched": gemini_enriched,
             "avg_score": round(avg_score, 1),
             "avg_award_score": round(avg_award_score, 1),
         }
@@ -97,6 +100,7 @@ _ALERTS_SELECT = """
         al.materiality_score,
         al.alert_level,
         al.reasons_json,
+        al.gemini_analysis_json,
         al.claude_analysis_json,
         al.created_at,
         al.sent_console,
@@ -138,8 +142,10 @@ _ALERTS_SELECT = """
 def _parse_alert_row(r: sqlite3.Row) -> dict[str, Any]:
     row = dict(r)
     row["reasons"] = json.loads(row.get("reasons_json") or "[]")
-    claude_raw = row.get("claude_analysis_json") or ""
-    row["claude"] = json.loads(claude_raw) if claude_raw else None
+    ai_raw = row.get("gemini_analysis_json") or row.get("claude_analysis_json") or ""
+    ai_parsed = json.loads(ai_raw) if ai_raw else None
+    row["gemini"] = ai_parsed
+    row["claude"] = ai_parsed
     return row
 
 
@@ -153,7 +159,8 @@ def list_alerts(
     agency: str = "",         # partial match
     source: str = "",         # exact
     sector: str = "",         # exact
-    has_claude: str = "",     # "1" = only enriched, "0" = only un-enriched, "" = all
+    has_gemini: str = "",     # "1" = only enriched, "0" = only un-enriched, "" = all
+    has_claude: str = "",     # legacy alias
     min_amount: float = 0,    # award_amount lower bound (dollars); 0 = no limit
     max_amount: float = 0,    # award_amount upper bound (dollars); 0 = no limit
     min_market_cap: float = 0,  # company market_cap lower bound; 0 = no limit
@@ -192,10 +199,11 @@ def list_alerts(
             where.append("co.sector = ?")
             params.append(sector)
 
-        if has_claude == "1":
-            where.append("al.claude_analysis_json != '' AND al.claude_analysis_json IS NOT NULL")
-        elif has_claude == "0":
-            where.append("(al.claude_analysis_json = '' OR al.claude_analysis_json IS NULL)")
+        ai_filter = has_gemini if has_gemini != "" else has_claude
+        if ai_filter == "1":
+            where.append("((al.gemini_analysis_json != '' AND al.gemini_analysis_json IS NOT NULL) OR (al.claude_analysis_json != '' AND al.claude_analysis_json IS NOT NULL))")
+        elif ai_filter == "0":
+            where.append("((al.gemini_analysis_json = '' OR al.gemini_analysis_json IS NULL) AND (al.claude_analysis_json = '' OR al.claude_analysis_json IS NULL))")
 
         # Award-amount range. We compare against the larger of award_amount and
         # obligated_amount because some sources only populate one of the two.

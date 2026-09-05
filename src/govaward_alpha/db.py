@@ -101,6 +101,7 @@ CREATE TABLE IF NOT EXISTS alerts (
     sent_email          INTEGER DEFAULT 0,
     sent_telegram       INTEGER DEFAULT 0,
     sent_discord        INTEGER DEFAULT 0,
+    gemini_analysis_json TEXT   DEFAULT '',
     claude_analysis_json TEXT   DEFAULT '',
     created_at          TEXT    NOT NULL
 );
@@ -129,6 +130,14 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE alerts ADD COLUMN claude_analysis_json TEXT DEFAULT ''")
         conn.commit()
         logger.info("Migration: added claude_analysis_json column to alerts")
+
+    if "gemini_analysis_json" not in alert_cols:
+        conn.execute("ALTER TABLE alerts ADD COLUMN gemini_analysis_json TEXT DEFAULT ''")
+        conn.commit()
+        if "claude_analysis_json" in alert_cols:
+            conn.execute("UPDATE alerts SET gemini_analysis_json = claude_analysis_json WHERE gemini_analysis_json = '' AND claude_analysis_json != ''")
+            conn.commit()
+        logger.info("Migration: added gemini_analysis_json column to alerts")
 
     award_cols = {row[1] for row in conn.execute("PRAGMA table_info(awards)")}
     if "materiality_score" not in award_cols:
@@ -382,12 +391,14 @@ def get_company(conn: sqlite3.Connection, ticker: str) -> sqlite3.Row | None:
 # ---------------------------------------------------------------------------
 
 def insert_alert(conn: sqlite3.Connection, alert: AlertRecord) -> int:
+    gemini_json = alert.gemini_analysis_json or alert.claude_analysis_json
+    claude_json = alert.claude_analysis_json or alert.gemini_analysis_json
     cur = conn.execute(
         """INSERT INTO alerts
            (award_id,ticker,materiality_score,alert_level,reasons_json,
             sent_console,sent_email,sent_telegram,sent_discord,
-            claude_analysis_json,created_at)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+            gemini_analysis_json,claude_analysis_json,created_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
         (
             alert.award_id,
             alert.ticker,
@@ -398,7 +409,8 @@ def insert_alert(conn: sqlite3.Connection, alert: AlertRecord) -> int:
             int(alert.sent_email),
             int(alert.sent_telegram),
             int(alert.sent_discord),
-            alert.claude_analysis_json,
+            gemini_json,
+            claude_json,
             alert.created_at.isoformat(),
         ),
     )

@@ -69,7 +69,9 @@ def _query_new_alerts(
     return conn.execute(
         """
         SELECT al.id as alert_id, al.materiality_score, al.alert_level,
-               al.reasons_json, al.claude_analysis_json, al.created_at,
+               al.reasons_json,
+               COALESCE(al.gemini_analysis_json, al.claude_analysis_json, '') as ai_analysis_json,
+               al.claude_analysis_json, al.created_at,
                aw.awardee_name_raw, aw.award_amount, aw.obligated_amount,
                aw.agency, aw.posted_date, aw.source, aw.source_url,
                aw.is_idiq, aw.is_modification, al.ticker,
@@ -96,6 +98,7 @@ def _query_fresh_alerts(
     return conn.execute(
         """
         SELECT al.id as alert_id, al.materiality_score, al.alert_level,
+               COALESCE(al.gemini_analysis_json, al.claude_analysis_json, '') as ai_analysis_json,
                al.claude_analysis_json,
                aw.awardee_name_raw, aw.award_amount, aw.obligated_amount,
                aw.agency, aw.posted_date, aw.source, aw.source_url,
@@ -180,8 +183,15 @@ def _render_alert_line(r: sqlite3.Row, *, include_claude: bool = True) -> str:
         + (f"[source]({r['source_url']})" if r["source_url"] else f"source: {r['source']}"),
     ]
 
-    if include_claude and "claude_analysis_json" in r.keys():
-        raw = r["claude_analysis_json"]
+    if include_claude:
+        raw = ""
+        if "ai_analysis_json" in r.keys() and r["ai_analysis_json"]:
+            raw = r["ai_analysis_json"]
+        elif "gemini_analysis_json" in r.keys() and r["gemini_analysis_json"]:
+            raw = r["gemini_analysis_json"]
+        elif "claude_analysis_json" in r.keys() and r["claude_analysis_json"]:
+            raw = r["claude_analysis_json"]
+
         if raw:
             try:
                 c = json.loads(raw)
@@ -189,7 +199,7 @@ def _render_alert_line(r: sqlite3.Row, *, include_claude: bool = True) -> str:
                 qual = c.get("contract_quality", "?")
                 narr = c.get("materiality_narrative", "").strip()
                 if narr:
-                    lines.append(f"  - **Claude** (resolver={conf}, quality={qual}): _{narr}_")
+                    lines.append(f"  - **Gemini** (resolver={conf}, quality={qual}): _{narr}_")
                 flags = c.get("watch_flags") or []
                 if flags:
                     lines.append(

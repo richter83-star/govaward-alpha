@@ -12,7 +12,7 @@ from rich.text import Text
 from govaward_alpha.models import AlertRecord, Award, Company, ScoreResult
 
 if TYPE_CHECKING:
-    from govaward_alpha.enrich.claude_enricher import ClaudeAnalysis
+    from govaward_alpha.enrich.gemini_enricher import GeminiAnalysis
 
 console = Console()
 
@@ -60,9 +60,11 @@ def render_alert(
     award: Award,
     company: Company | None,
     result: ScoreResult,
-    claude: "ClaudeAnalysis | None" = None,
+    gemini: "GeminiAnalysis | None" = None,
+    claude: Any = None,
 ) -> str:
     """Render the canonical alert text (used by all channels)."""
+    ai = gemini or claude
     lines = [
         f"{result.level} ALERT: Possible Material Federal Award",
         "",
@@ -91,27 +93,27 @@ def render_alert(
     for reason in result.reasons:
         lines.append(f"  - {reason}")
 
-    if claude is not None:
+    if ai is not None:
         lines += [
             "",
             "─" * 60,
-            "Claude Analysis",
+            "Gemini Analysis",
             "─" * 60,
-            f"Resolver match:  {_CONFIDENCE_LABELS.get(claude.resolver_confidence, '?')}  {claude.resolver_note}",
-            f"Contract type:   {_QUALITY_LABELS.get(claude.contract_quality, claude.contract_quality)}",
-            f"                 {claude.quality_note}",
+            f"Resolver match:  {_CONFIDENCE_LABELS.get(ai.resolver_confidence, '?')}  {ai.resolver_note}",
+            f"Contract type:   {_QUALITY_LABELS.get(ai.contract_quality, ai.contract_quality)}",
+            f"                 {ai.quality_note}",
         ]
 
-        if claude.materiality_narrative:
+        if ai.materiality_narrative:
             lines += ["", "Investment context:"]
-            for sentence in claude.materiality_narrative.split(". "):
+            for sentence in ai.materiality_narrative.split(". "):
                 s = sentence.strip().rstrip(".")
                 if s:
                     lines.append(f"  {s}.")
 
-        if claude.watch_flags:
+        if ai.watch_flags:
             lines += ["", "Watch flags:"]
-            for flag in claude.watch_flags:
+            for flag in ai.watch_flags:
                 lines.append(f"  ⚠  {flag}")
 
     lines += [
@@ -145,10 +147,11 @@ def print_alert(
     award: Award,
     company: Company | None,
     result: ScoreResult,
-    claude: "ClaudeAnalysis | None" = None,
+    gemini: "GeminiAnalysis | None" = None,
+    claude: Any = None,
 ) -> None:
     """Print a formatted alert panel to the console."""
-    text_body = render_alert(award, company, result, claude)
+    text_body = render_alert(award, company, result, gemini or claude)
     level = result.level
     color = _LEVEL_COLORS.get(level, "white")
 

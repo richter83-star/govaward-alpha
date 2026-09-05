@@ -49,8 +49,9 @@ class TestInitDb:
         from govaward_alpha import config
 
         config._settings = None
-        legacy_ddl = db.DDL.replace(
-            "    claude_analysis_json TEXT   DEFAULT '',\n", ""
+        legacy_ddl = (
+            db.DDL.replace("    claude_analysis_json TEXT   DEFAULT '',\n", "")
+            .replace("    gemini_analysis_json TEXT   DEFAULT '',\n", "")
         )
         conn = sqlite3.connect(str(tmp_path / "legacy.db"))
         conn.executescript(legacy_ddl)
@@ -68,6 +69,7 @@ class TestInitDb:
         rows = conn.execute("SELECT ticker FROM alerts").fetchall()
         conn.close()
         assert "claude_analysis_json" in cols
+        assert "gemini_analysis_json" in cols
         assert rows == [("KTOS",)], "existing rows must survive the migration"
 
 
