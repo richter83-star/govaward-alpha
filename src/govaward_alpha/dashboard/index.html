@@ -62,10 +62,11 @@
     /* ── Layout ─────────────────────────────────────────── */
     #app {
       display: grid;
-      grid-template-rows: 54px 1fr;
-      grid-template-columns: 224px 1fr;
+      grid-template-rows: 44px 1fr;
+      grid-template-columns: 195px 1fr;
       grid-template-areas: "topbar topbar" "sidebar main";
-      height: 100%;
+      height: 100vh;
+      overflow: hidden;
     }
 
     /* ── Topbar ─────────────────────────────────────────── */
@@ -73,8 +74,8 @@
       grid-area: topbar;
       display: flex;
       align-items: center;
-      gap: 14px;
-      padding: 0 20px;
+      gap: 12px;
+      padding: 0 14px;
       border-bottom: 1px solid var(--border);
       background: var(--bg-glass);
       backdrop-filter: blur(16px);
@@ -278,97 +279,116 @@
     /* ── Main Container ──────────────────────────────────── */
     #main {
       grid-area: main;
-      overflow-y: auto;
-      padding: 22px 26px;
+      overflow: hidden;
+      padding: 8px 14px;
       display: flex;
       flex-direction: column;
-      gap: 20px;
+      gap: 8px;
+      height: calc(100vh - 44px);
     }
 
     /* ── Pages ───────────────────────────────────────────── */
-    .page { display: none; flex-direction: column; gap: 20px; }
-    .page.active { display: flex; animation: fadeIn .18s ease-in-out; }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+    .page { display: none; flex-direction: column; gap: 8px; height: 100%; min-height: 0; }
+    .page.active { display: flex; flex: 1; min-height: 0; animation: fadeIn .12s ease-in-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
 
-    /* ── Stats Strip ─────────────────────────────────────── */
+    /* ── Stats Ribbon (Compact Terminal Strip) ───────────── */
     .stats-strip {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-      gap: 12px;
-    }
-    .stat-card {
+      display: flex;
+      align-items: center;
       background: var(--bg-card);
       border: 1px solid var(--border);
       border-radius: var(--radius);
-      padding: 14px 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
+      padding: 4px 10px;
+      gap: 0;
       box-shadow: var(--shadow-card);
-      position: relative;
-      overflow: hidden;
-      transition: border-color .15s, transform .1s;
+      overflow-x: auto;
+      flex-shrink: 0;
+      height: 38px;
     }
-    .stat-card:hover { border-color: var(--border-glow); transform: translateY(-1px); }
-    .stat-card::before {
-      content: '';
-      position: absolute;
-      top: 0; left: 0; right: 0;
-      height: 2px;
-      background: linear-gradient(90deg, transparent, var(--border-glow), transparent);
+    .stat-item {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      padding: 0 12px;
+      border-right: 1px solid var(--border);
+      white-space: nowrap;
+      flex-shrink: 0;
     }
+    .stat-item:first-child { padding-left: 2px; }
+    .stat-item:last-child { border-right: none; }
     .stat-label {
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: .09em;
-      text-transform: uppercase;
-      color: var(--text-mute);
-    }
-    .stat-value {
-      font-size: 22px;
-      font-weight: 700;
-      font-family: var(--mono);
-      color: var(--amber);
-      line-height: 1.15;
-    }
-    .stat-sub { font-size: 10.5px; color: var(--text-dim); font-family: var(--mono); }
-
-    /* ── Filter Bar ──────────────────────────────────────── */
-    .filter-bar {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 14px 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      box-shadow: var(--shadow-card);
-    }
-    .filter-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-    .filter-label {
-      font-size: 10px;
+      font-size: 9px;
       font-weight: 700;
       letter-spacing: .08em;
       text-transform: uppercase;
       color: var(--text-mute);
-      white-space: nowrap;
-      width: 54px;
+    }
+    .stat-value {
+      font-size: 14px;
+      font-weight: 700;
+      font-family: var(--mono);
+      color: var(--amber);
+      line-height: 1;
+    }
+    .stat-sub {
+      font-size: 9.5px;
+      color: var(--text-dim);
+      font-family: var(--mono);
+    }
+
+    /* ── Filter Bar (Ultra-Compact) ──────────────────────── */
+    .filter-bar {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 5px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      box-shadow: var(--shadow-card);
       flex-shrink: 0;
     }
-    .freshness-pills, .level-pills { display: flex; gap: 5px; flex-wrap: wrap; }
+    .filter-primary-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+    }
+    .search-wrap {
+      display: flex;
+      align-items: center;
+      background: var(--bg);
+      border: 1px solid var(--border-lt);
+      border-radius: var(--radius);
+      padding: 0 7px;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    .search-icon { font-size: 11px; opacity: .5; }
+    .search-wrap .filter-input {
+      border: none;
+      background: transparent;
+      padding: 3px 2px;
+      width: 140px;
+      font-size: 11.5px;
+    }
+    .search-wrap .filter-input:focus { box-shadow: none; }
+
+    .freshness-pills { display: flex; gap: 3px; flex-shrink: 0; }
     .fresh-pill {
       display: inline-flex;
       align-items: center;
-      padding: 4px 11px;
-      border-radius: 4px;
-      font-size: 11px;
+      padding: 2px 7px;
+      border-radius: 3px;
+      font-size: 10px;
       font-weight: 600;
       font-family: var(--mono);
-      letter-spacing: .03em;
       cursor: pointer;
       border: 1px solid var(--border-lt);
       color: var(--text-dim);
-      transition: border-color .15s, color .15s, background .15s;
+      transition: all .12s;
     }
     .fresh-pill:hover { border-color: var(--text-dim); color: var(--text); }
     .fresh-pill.on {
@@ -376,36 +396,135 @@
       border-color: var(--green);
       color: var(--green);
     }
-    .freshness-note { font-size: 10.5px; color: var(--text-mute); font-family: var(--mono); margin-left: 8px; }
 
-    .fresh-badge {
-      display: inline-block;
-      margin-left: 6px;
-      padding: 0 5px;
-      font-size: 8.5px;
-      font-weight: 700;
-      font-family: var(--mono);
-      letter-spacing: .05em;
-      border-radius: 2px;
-      vertical-align: 1px;
+    .quick-preset-pills { display: flex; gap: 4px; flex-shrink: 0; }
+    .preset-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 7px;
+      border: 1px solid var(--border-lt);
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 10.5px;
+      font-weight: 600;
+      color: var(--text-dim);
+      background: transparent;
+      transition: all .12s;
+      white-space: nowrap;
     }
-    .fresh-badge.fresh-now  { background: rgba(16, 185, 129, 0.2); color: var(--green); border: 1px solid rgba(16, 185, 129, 0.4); }
-    .fresh-badge.fresh-week { background: rgba(245, 158, 11, 0.18); color: var(--amber); border: 1px solid rgba(245, 158, 11, 0.4); }
-    .fresh-badge.fresh-old  { background: rgba(148, 163, 184, 0.1); color: var(--text-mute); border: 1px solid var(--border-lt); }
+    .preset-toggle:hover { border-color: var(--text-dim); color: var(--text); }
+    .preset-toggle.on {
+      border-color: var(--amber);
+      color: var(--amber);
+      background: var(--amber-glow);
+    }
+    .preset-check { font-size: 9px; }
 
+    .inline-filter-tags { display: flex; gap: 4px; align-items: center; overflow-x: auto; flex: 1; }
+    .active-filter-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      padding: 1px 6px;
+      background: var(--amber-glow);
+      border: 1px solid var(--amber-dim);
+      border-radius: 8px;
+      font-size: 9.5px;
+      color: var(--amber);
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .filter-actions-right {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    .btn-more-filters {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-lt);
+      border-radius: var(--radius);
+      color: var(--text-dim);
+      font-size: 10.5px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .12s;
+    }
+    .btn-more-filters:hover { border-color: var(--amber); color: var(--amber); }
+    .btn-more-filters.active {
+      border-color: var(--amber);
+      color: var(--amber);
+      background: var(--amber-glow);
+    }
+    .filter-active-count {
+      display: inline-block;
+      padding: 0 4px;
+      font-size: 8.5px;
+      font-family: var(--mono);
+      font-weight: 700;
+      border-radius: 6px;
+      background: var(--amber);
+      color: var(--bg);
+    }
+    .btn-reset-icon {
+      padding: 2px 7px;
+      background: transparent;
+      border: 1px solid var(--border-lt);
+      border-radius: var(--radius);
+      color: var(--text-mute);
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .btn-reset-icon:hover { border-color: var(--text-dim); color: var(--text); }
+
+    /* ── Collapsible Advanced Filters Drawer ─────────────── */
+    .filter-drawer {
+      border-top: 1px solid var(--border);
+      padding-top: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      animation: fadeIn .12s ease-in-out;
+    }
+    .drawer-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .drawer-group {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .filter-label {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--text-mute);
+      white-space: nowrap;
+    }
+    .level-pills { display: flex; gap: 3px; }
     .level-pill {
       display: inline-flex;
       align-items: center;
-      padding: 3px 10px;
+      padding: 1px 6px;
       border-radius: 3px;
-      font-size: 10px;
+      font-size: 9px;
       font-weight: 700;
       font-family: var(--mono);
-      letter-spacing: .04em;
       cursor: pointer;
       border: 1px solid transparent;
-      transition: opacity .15s, border-color .15s;
       opacity: .35;
+      transition: opacity .12s;
     }
     .level-pill.on { opacity: 1; }
     .pill-RED    { background: var(--red-glow);    color: var(--red);    border-color: rgba(244,63,94,.4);  }
@@ -416,145 +535,105 @@
     .filter-input {
       background: var(--bg);
       border: 1px solid var(--border-lt);
-      border-radius: var(--radius);
+      border-radius: 3px;
       color: var(--text);
-      font-size: 12px;
+      font-size: 11px;
       font-family: var(--mono);
-      padding: 5px 9px;
+      padding: 3px 6px;
       outline: none;
-      transition: border-color .15s, box-shadow .15s;
+      transition: border-color .12s;
     }
-    .filter-input:focus { border-color: var(--amber); box-shadow: 0 0 8px rgba(245, 158, 11, 0.2); }
-    .filter-input::placeholder { color: var(--text-mute); }
+    .filter-input:focus { border-color: var(--amber); }
 
     select.filter-input {
       cursor: pointer;
       -webkit-appearance: none;
       appearance: none;
-      padding-right: 22px;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23475569'/%3E%3C/svg%3E");
+      padding-right: 18px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%23475569'/%3E%3C/svg%3E");
       background-repeat: no-repeat;
-      background-position: right 8px center;
+      background-position: right 6px center;
     }
-
-    .preset-toggle {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 5px 12px;
-      border: 1px solid var(--border-lt);
-      border-radius: var(--radius);
-      cursor: pointer;
-      font-size: 11.5px;
-      font-weight: 600;
-      color: var(--text-dim);
-      background: transparent;
-      font-family: var(--sans);
-      transition: border-color .15s, color .15s, background .15s;
-    }
-    .preset-toggle:hover { border-color: var(--text-dim); color: var(--text); }
-    .preset-toggle.on {
-      border-color: var(--amber);
-      color: var(--amber);
-      background: var(--amber-glow);
-    }
-    .preset-check {
-      display: inline-block;
-      width: 12px;
-      height: 12px;
-      line-height: 12px;
-      text-align: center;
-      font-size: 10px;
-      font-weight: 700;
-      color: var(--text-mute);
-    }
-    .preset-toggle.on .preset-check { color: var(--amber); }
-
-    .filter-toggle {
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      padding: 4px 10px;
-      border: 1px solid var(--border-lt);
-      border-radius: var(--radius);
-      cursor: pointer;
-      font-size: 11px;
-      color: var(--text-dim);
-      background: transparent;
-      font-family: var(--sans);
-      transition: border-color .15s, color .15s;
-    }
-    .filter-toggle.on { border-color: var(--amber); color: var(--amber); }
-    .filter-toggle.disabled { opacity: .4; cursor: not-allowed; }
-    .filter-toggle .badge-count {
-      display: inline-block;
-      margin-left: 6px;
-      padding: 0 5px;
-      min-width: 16px;
-      height: 14px;
-      line-height: 14px;
-      text-align: center;
-      font-family: var(--mono);
-      font-size: 9px;
-      font-weight: 700;
-      border-radius: 7px;
-      background: var(--border);
-      color: var(--text-mute);
-    }
-    .filter-toggle.on .badge-count { background: var(--amber); color: var(--bg); }
 
     .btn-apply {
-      padding: 5px 14px;
+      padding: 3px 10px;
       background: var(--amber-glow);
       border: 1px solid var(--amber-dim);
       border-radius: var(--radius);
       color: var(--amber);
-      font-size: 11px;
+      font-size: 10.5px;
       font-weight: 600;
       cursor: pointer;
       font-family: var(--sans);
-      transition: background .15s;
     }
     .btn-apply:hover { background: rgba(245, 158, 11, 0.25); }
 
     .btn-reset {
-      padding: 5px 10px;
+      padding: 3px 8px;
       background: transparent;
       border: 1px solid var(--border-lt);
       border-radius: var(--radius);
       color: var(--text-mute);
-      font-size: 11px;
+      font-size: 10.5px;
       cursor: pointer;
       font-family: var(--sans);
     }
     .btn-reset:hover { border-color: var(--border-lt); color: var(--text-dim); }
 
-    .active-filter-tag {
-      display: inline-flex;
+    /* ── Live Radar Empty Banner ─────────────────────────── */
+    .radar-banner {
+      display: flex;
       align-items: center;
-      gap: 4px;
-      padding: 2px 8px;
-      background: var(--amber-glow);
-      border: 1px solid var(--amber-dim);
-      border-radius: 10px;
-      font-size: 10px;
-      color: var(--amber);
-      cursor: pointer;
+      justify-content: space-between;
+      gap: 10px;
+      background: rgba(245, 158, 11, 0.07);
+      border: 1px solid rgba(245, 158, 11, 0.22);
+      border-radius: var(--radius);
+      padding: 5px 10px;
+      font-size: 11px;
+      color: var(--text-dim);
+      flex-shrink: 0;
     }
-    .active-filter-tag:hover { opacity: .7; }
+    .view-mode-tabs {
+      display: flex;
+      gap: 3px;
+      background: var(--bg);
+      border: 1px solid var(--border-lt);
+      border-radius: 4px;
+      padding: 2px;
+    }
+    .view-tab {
+      padding: 2px 7px;
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text-mute);
+      cursor: pointer;
+      border-radius: 3px;
+      border: none;
+      background: transparent;
+    }
+    .view-tab.active {
+      background: var(--bg-card);
+      color: var(--amber);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+    }
 
-    /* ── Section Headers ─────────────────────────────────── */
-    .section-header { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
-    .section-title { font-size: 12.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--text-dim); }
-    .section-count { font-size: 10.5px; font-family: var(--mono); color: var(--text-mute); }
-
-    /* ── Card & Tables ───────────────────────────────────── */
+    /* ── Data Card & Dense Grid ──────────────────────────── */
     .card {
       background: var(--bg-card);
       border: 1px solid var(--border);
       border-radius: var(--radius);
-      overflow: hidden;
       box-shadow: var(--shadow-card);
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .table-scroll-wrap {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
     }
     .alerts-table, .co-table, .source-table {
       width: 100%;
@@ -563,17 +642,21 @@
     .alerts-table thead tr, .co-table thead tr, .source-table thead tr {
       background: var(--bg-elevated);
       border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 5;
     }
     .alerts-table th, .co-table th, .source-table th {
-      padding: 9px 12px;
+      padding: 6px 10px;
       text-align: left;
-      font-size: 10px;
+      font-size: 9.5px;
       font-weight: 700;
-      letter-spacing: .09em;
+      letter-spacing: .08em;
       text-transform: uppercase;
       color: var(--text-mute);
-      user-select: none;
       white-space: nowrap;
+      background: var(--bg-elevated);
+      user-select: none;
     }
     .alerts-table th { cursor: pointer; }
     .alerts-table th:hover { color: var(--text-dim); }
@@ -595,9 +678,10 @@
     }
     .alerts-table tbody tr.expanded { background: var(--bg-hover); border-left: 2px solid var(--amber); }
     .alerts-table td, .co-table td, .source-table td {
-      padding: 9px 12px;
-      font-size: 12px;
+      padding: 6px 10px;
+      font-size: 11.5px;
       vertical-align: middle;
+      line-height: 1.35;
     }
 
     /* ── Badges ──────────────────────────────────────────── */
@@ -742,10 +826,37 @@
     .no-claude { font-size: 11px; color: var(--text-mute); font-style: italic; }
 
     /* ── Charts Grid ─────────────────────────────────────── */
-    .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-    .chart-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; box-shadow: var(--shadow-card); }
-    .chart-title { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 14px; }
-    .chart-wrap { position: relative; height: 210px; }
+    .charts-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+    .chart-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 16px;
+      box-shadow: var(--shadow-card);
+      display: flex;
+      flex-direction: column;
+    }
+    .chart-title {
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 8px;
+    }
+    .chart-wrap {
+      position: relative;
+      flex: 1;
+      min-height: 180px;
+    }
 
     /* ── Source Audit Status ─────────────────────────────── */
     .status-badge { display: inline-flex; align-items: center; gap: 4px; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-family: var(--mono); font-weight: 700; }
@@ -950,121 +1061,146 @@
     <!-- ── Page 1: Alert Feed ──────────────────────────── -->
     <section class="page active" id="page-alerts">
       <div class="stats-strip" id="stats-strip">
-        <div class="loading"><div class="spinner"></div> Loading…</div>
+        <div class="loading"><div class="spinner"></div> Loading telemetry…</div>
       </div>
 
-      <!-- Filter Bar -->
+      <!-- Filter Bar (Ultra-Compact Primary Row) -->
       <div class="filter-bar">
-        <div class="filter-row">
-          <span class="filter-label">Posted</span>
+        <div class="filter-primary-row">
+          <div class="search-wrap">
+            <span class="search-icon">🔍</span>
+            <input class="filter-input" type="text" id="f-ticker" placeholder="Filter ticker / awardee…" onkeydown="if(event.key==='Enter')applyFilters()" oninput="debounceApplyFilters()">
+          </div>
+
           <div class="freshness-pills" id="freshness-pills">
-            <span class="fresh-pill" data-fresh="1"   onclick="setFreshness('1')">24h</span>
-            <span class="fresh-pill on" data-fresh="7"  onclick="setFreshness('7')">7d</span>
-            <span class="fresh-pill" data-fresh="30"  onclick="setFreshness('30')">30d</span>
-            <span class="fresh-pill" data-fresh="90"  onclick="setFreshness('90')">90d</span>
-            <span class="fresh-pill" data-fresh="all" onclick="setFreshness('all')">All time</span>
+            <span class="fresh-pill" data-fresh="1" onclick="setFreshness('1')">24h</span>
+            <span class="fresh-pill" data-fresh="7" onclick="setFreshness('7')">7d</span>
+            <span class="fresh-pill" data-fresh="30" onclick="setFreshness('30')">30d</span>
+            <span class="fresh-pill on" data-fresh="all" onclick="setFreshness('all')">All</span>
           </div>
-          <span class="freshness-note" id="freshness-note"></span>
-        </div>
 
-        <div class="filter-row">
-          <span class="filter-label">Quick</span>
-          <button class="preset-toggle on" id="f-preset-50m" onclick="togglePreset('50m')">
-            <span class="preset-check">✓</span> Award ≥ $50M
-          </button>
-          <button class="preset-toggle on" id="f-preset-smid" onclick="togglePreset('smid')">
-            <span class="preset-check">✓</span> Small/Mid Cap ($50M – $10B)
-          </button>
-          <button class="filter-toggle" id="f-claude-btn" onclick="toggleClaudeFilter()">
-            <span id="f-claude-label">Claude analyzed</span>
-            <span class="badge-count" id="f-claude-count">0</span>
-          </button>
-          <div style="margin-left:auto;display:flex;gap:6px">
-            <button class="btn-reset" onclick="resetFilters()">Reset</button>
-            <button class="btn-apply" onclick="applyFilters()">Apply</button>
+          <div class="quick-preset-pills">
+            <button class="preset-toggle" id="f-preset-50m" onclick="togglePreset('50m')">
+              <span class="preset-check">✓</span> ≥ $50M
+            </button>
+            <button class="preset-toggle" id="f-preset-smid" onclick="togglePreset('smid')">
+              <span class="preset-check">✓</span> SMID Cap
+            </button>
+            <button class="preset-toggle" id="f-claude-btn" onclick="toggleClaudeFilter()">
+              Claude AI <span class="badge-count" id="f-claude-count">0</span>
+            </button>
           </div>
-        </div>
 
-        <div class="filter-row">
-          <span class="filter-label">Level</span>
-          <div class="level-pills" id="level-pills">
-            <span class="level-pill pill-RED on"    data-lvl="RED"    onclick="toggleLevel('RED')">RED</span>
-            <span class="level-pill pill-ORANGE on" data-lvl="ORANGE" onclick="toggleLevel('ORANGE')">ORANGE</span>
-            <span class="level-pill pill-YELLOW on" data-lvl="YELLOW" onclick="toggleLevel('YELLOW')">YELLOW</span>
-            <span class="level-pill pill-WATCH on"  data-lvl="WATCH"  onclick="toggleLevel('WATCH')">WATCH</span>
-          </div>
-          <span class="filter-label" style="margin-left:8px">Score</span>
-          <div style="display:flex;align-items:center;gap:6px">
-            <input class="filter-input" type="number" id="f-min-score" min="0" max="100" value="0" style="width:52px" onchange="applyFilters()">
-            <span style="color:var(--text-mute)">–</span>
-            <input class="filter-input" type="number" id="f-max-score" min="0" max="100" value="100" style="width:52px" onchange="applyFilters()">
+          <div id="filter-status" class="inline-filter-tags"></div>
+
+          <div class="filter-actions-right">
+            <button class="btn-more-filters" id="btn-toggle-filters" onclick="toggleAdvancedFilters()">
+              <span>⚙ Filters</span>
+              <span class="filter-active-count" id="adv-filter-count" style="display:none">0</span>
+              <span id="adv-filter-chevron">▾</span>
+            </button>
+            <button class="btn-reset-icon" onclick="resetFilters()" title="Reset Filters">↺</button>
           </div>
         </div>
 
-        <div class="filter-row">
-          <span class="filter-label">Search</span>
-          <input class="filter-input" type="text" id="f-ticker" placeholder="Ticker (e.g. KTOS, NOC)" style="width:140px" onkeydown="if(event.key==='Enter')applyFilters()">
-          <select class="filter-input" id="f-agency" style="min-width:160px;max-width:220px" onchange="applyFilters()">
-            <option value="">All agencies</option>
-          </select>
-          <select class="filter-input" id="f-source" onchange="applyFilters()">
-            <option value="">All sources</option>
-          </select>
-          <select class="filter-input" id="f-sector" onchange="applyFilters()">
-            <option value="">All sectors</option>
-          </select>
-        </div>
+        <!-- Collapsible Advanced Filters Drawer -->
+        <div class="filter-drawer" id="advanced-filters" style="display:none">
+          <div class="drawer-row">
+            <div class="drawer-group">
+              <span class="filter-label">Level</span>
+              <div class="level-pills" id="level-pills">
+                <span class="level-pill pill-RED on" data-lvl="RED" onclick="toggleLevel('RED')">RED</span>
+                <span class="level-pill pill-ORANGE on" data-lvl="ORANGE" onclick="toggleLevel('ORANGE')">ORANGE</span>
+                <span class="level-pill pill-YELLOW on" data-lvl="YELLOW" onclick="toggleLevel('YELLOW')">YELLOW</span>
+                <span class="level-pill pill-WATCH on" data-lvl="WATCH" onclick="toggleLevel('WATCH')">WATCH</span>
+              </div>
+            </div>
 
-        <div class="filter-row">
-          <span class="filter-label">Award $</span>
-          <div style="display:flex;align-items:center;gap:6px">
-            <input class="filter-input" type="number" id="f-min-amount-m" min="0" placeholder="50" style="width:64px" onchange="onAmountChange()">
-            <span style="color:var(--text-mute)">M – $</span>
-            <input class="filter-input" type="number" id="f-max-amount-m" min="0" placeholder="any" style="width:64px" onchange="onAmountChange()">
-            <span style="color:var(--text-mute)">M</span>
+            <div class="drawer-group">
+              <span class="filter-label">Score</span>
+              <input class="filter-input" type="number" id="f-min-score" min="0" max="100" value="0" style="width:48px" onchange="applyFilters()">
+              <span style="color:var(--text-mute)">–</span>
+              <input class="filter-input" type="number" id="f-max-score" min="0" max="100" value="100" style="width:48px" onchange="applyFilters()">
+            </div>
+
+            <div class="drawer-group">
+              <span class="filter-label">Agency</span>
+              <select class="filter-input" id="f-agency" style="max-width:180px" onchange="applyFilters()">
+                <option value="">All agencies</option>
+              </select>
+            </div>
+
+            <div class="drawer-group">
+              <span class="filter-label">Source</span>
+              <select class="filter-input" id="f-source" onchange="applyFilters()">
+                <option value="">All sources</option>
+              </select>
+            </div>
+
+            <div class="drawer-group">
+              <span class="filter-label">Sector</span>
+              <select class="filter-input" id="f-sector" onchange="applyFilters()">
+                <option value="">All sectors</option>
+              </select>
+            </div>
           </div>
-          <span class="filter-label" style="margin-left:14px">Mkt Cap</span>
-          <div style="display:flex;align-items:center;gap:6px">
-            <input class="filter-input" type="number" id="f-min-mc-m" min="0" placeholder="50" style="width:64px" onchange="onCapChange()">
-            <span style="color:var(--text-mute)">M – $</span>
-            <input class="filter-input" type="number" id="f-max-mc-b" min="0" step="0.5" placeholder="10" style="width:64px" onchange="onCapChange()">
-            <span style="color:var(--text-mute)">B</span>
+
+          <div class="drawer-row" style="margin-top:4px">
+            <div class="drawer-group">
+              <span class="filter-label">Award $</span>
+              <input class="filter-input" type="number" id="f-min-amount-m" min="0" placeholder="Min" style="width:56px" onchange="onAmountChange()">
+              <span style="color:var(--text-mute)">M – $</span>
+              <input class="filter-input" type="number" id="f-max-amount-m" min="0" placeholder="any" style="width:56px" onchange="onAmountChange()">
+              <span style="color:var(--text-mute)">M</span>
+            </div>
+
+            <div class="drawer-group">
+              <span class="filter-label">Mkt Cap</span>
+              <input class="filter-input" type="number" id="f-min-mc-m" min="0" placeholder="Min" style="width:56px" onchange="onCapChange()">
+              <span style="color:var(--text-mute)">M – $</span>
+              <input class="filter-input" type="number" id="f-max-mc-b" min="0" step="0.5" placeholder="any" style="width:56px" onchange="onCapChange()">
+              <span style="color:var(--text-mute)">B</span>
+            </div>
+
+            <div style="margin-left:auto;display:flex;gap:6px">
+              <button class="btn-reset" onclick="resetFilters()">Reset All</button>
+              <button class="btn-apply" onclick="applyFilters()">Apply</button>
+            </div>
           </div>
         </div>
-
-        <div id="filter-status"></div>
       </div>
 
-      <!-- Alert Table -->
-      <div>
-        <div class="section-header" style="margin-bottom:10px">
-          <span class="section-title">Catalyst Alert Feed</span>
+      <!-- Live Radar Notice / View Mode Toggle -->
+      <div class="radar-banner" id="feed-header-banner">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="color:var(--green);font-family:var(--mono);font-weight:700">● RADAR FEED</span>
+          <span id="feed-status-msg" style="color:var(--text-dim)">Catalysts & high-materiality procurement pipeline</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="view-mode-tabs">
+            <button class="view-tab active" id="tab-mode-pipeline" onclick="setFeedMode('pipeline')">Pipeline Flow</button>
+            <button class="view-tab" id="tab-mode-alerts" onclick="setFeedMode('alerts')">Critical (≥70)</button>
+          </div>
           <span class="section-count" id="alert-count">—</span>
         </div>
-        <div class="card">
-          <div id="alerts-container">
-            <div class="loading"><div class="spinner"></div> Loading alerts…</div>
-          </div>
+      </div>
+
+      <!-- Alert / Contract Table Card -->
+      <div class="card">
+        <div class="table-scroll-wrap" id="alerts-container">
+          <div class="loading"><div class="spinner"></div> Loading feed…</div>
         </div>
       </div>
     </section>
 
     <!-- ── Page 2: All Contracts Pipeline ─────────────── -->
     <section class="page" id="page-contracts">
-      <div class="section-header">
-        <div>
-          <span class="section-title">All Scanned Contracts (Pipeline)</span>
-          <div style="font-size:11px;color:var(--text-dim);margin-top:2px">
-            Complete database of government awards ingested across USAspending, Defense.gov, and SAM.gov with real-time materiality scores.
+      <div class="filter-bar" style="padding:5px 8px">
+        <div class="filter-primary-row">
+          <div class="search-wrap" style="flex:1;max-width:340px">
+            <span class="search-icon">🔍</span>
+            <input class="filter-input" type="text" id="f-contract-search" placeholder="Search awardee, ticker, agency, description…" style="width:100%" oninput="filterContractsTable()">
           </div>
-        </div>
-        <span class="section-count" id="contracts-count">—</span>
-      </div>
-
-      <div class="filter-bar" style="padding:10px 14px">
-        <div class="filter-row">
-          <span class="filter-label">Search</span>
-          <input class="filter-input" type="text" id="f-contract-search" placeholder="Search awardee, ticker, agency, description…" style="flex:1;min-width:240px" oninput="filterContractsTable()">
           <select class="filter-input" id="f-contract-source" onchange="loadAllContracts()">
             <option value="">All sources</option>
             <option value="usaspending">USAspending</option>
@@ -1077,13 +1213,16 @@
             <option value="unresolved">Unresolved only</option>
             <option value="scored">Scored only (&gt;0)</option>
           </select>
-          <button class="btn-topbar" onclick="exportCsv()" style="padding:4px 10px;font-size:11px">⤓ CSV</button>
-          <button class="btn-reset" onclick="resetContractFilters()">Reset</button>
+          <div class="filter-actions-right">
+            <span class="section-count" id="contracts-count" style="font-size:11px">—</span>
+            <button class="btn-topbar" onclick="exportCsv()" style="padding:2px 8px;font-size:10px">⤓ CSV</button>
+            <button class="btn-reset-icon" onclick="resetContractFilters()" title="Reset">↺</button>
+          </div>
         </div>
       </div>
 
       <div class="card">
-        <div id="contracts-container">
+        <div class="table-scroll-wrap" id="contracts-container">
           <div class="loading"><div class="spinner"></div> Loading contracts pipeline…</div>
         </div>
       </div>
@@ -1091,18 +1230,18 @@
 
     <!-- ── Page 3: Unresolved Review ───────────────────── -->
     <section class="page" id="page-unresolved">
-      <div class="section-header">
-        <div>
-          <span class="section-title">High-Value Unresolved Contractor Review</span>
-          <div style="font-size:11px;color:var(--text-dim);margin-top:2px">
-            Recipients with missing ticker mappings. Click <strong>Map to Ticker</strong> to immediately link a public ticker or mark private to unlock automated catalyst scoring.
+      <div class="filter-bar" style="padding:5px 8px">
+        <div class="filter-primary-row">
+          <span style="font-size:11.5px;font-weight:600;color:var(--text)">High-Value Unresolved Contractors</span>
+          <span style="font-size:10.5px;color:var(--text-dim)">(Click "Map to Ticker" to link tickers or mark private)</span>
+          <div class="filter-actions-right">
+            <span class="section-count" id="unresolved-count" style="font-size:11px">—</span>
           </div>
         </div>
-        <span class="section-count" id="unresolved-count">—</span>
       </div>
 
       <div class="card">
-        <div id="unresolved-container">
+        <div class="table-scroll-wrap" id="unresolved-container">
           <div class="loading"><div class="spinner"></div> Loading unresolved entities…</div>
         </div>
       </div>
@@ -1110,12 +1249,17 @@
 
     <!-- ── Page 4: Companies ───────────────────────────── -->
     <section class="page" id="page-companies">
-      <div class="section-header">
-        <span class="section-title">Tracked Public Contractors</span>
-        <span class="section-count" id="co-count">—</span>
+      <div class="filter-bar" style="padding:5px 8px">
+        <div class="filter-primary-row">
+          <span style="font-size:11.5px;font-weight:600;color:var(--text)">Tracked Public Contractors & Financial Catalysts</span>
+          <div class="filter-actions-right">
+            <span class="section-count" id="co-count" style="font-size:11px">—</span>
+          </div>
+        </div>
       </div>
+
       <div class="card">
-        <div id="companies-container">
+        <div class="table-scroll-wrap" id="companies-container">
           <div class="loading"><div class="spinner"></div> Loading companies…</div>
         </div>
       </div>
@@ -1145,12 +1289,17 @@
 
     <!-- ── Page 6: Source Audit ────────────────────────── -->
     <section class="page" id="page-sources">
-      <div class="section-header">
-        <span class="section-title">Source Run History & Audit Trail</span>
-        <span class="section-count" id="source-count">—</span>
+      <div class="filter-bar" style="padding:5px 8px">
+        <div class="filter-primary-row">
+          <span style="font-size:11.5px;font-weight:600;color:var(--text)">Source Run History & Audit Trail</span>
+          <div class="filter-actions-right">
+            <span class="section-count" id="source-count" style="font-size:11px">—</span>
+          </div>
+        </div>
       </div>
+
       <div class="card">
-        <div id="sources-container">
+        <div class="table-scroll-wrap" id="sources-container">
           <div class="loading"><div class="spinner"></div> Loading audit log…</div>
         </div>
       </div>
@@ -1305,12 +1454,49 @@ function focusSearch() {
   }
 }
 
-// ── Filter State ──────────────────────────────────────────
+// ── Filter State & Compact Controls ────────────────────────
 
 const _levels = new Set(['RED','ORANGE','YELLOW','WATCH']);
 let _claudeOnly = false;
-const _presets = { '50m': true, 'smid': true };
-let _freshness = '7';
+const _presets = { '50m': false, 'smid': false };
+let _freshness = 'all';
+let _feedMode = 'pipeline';
+let _advFiltersOpen = false;
+
+function setFeedMode(mode) {
+  _feedMode = mode;
+  document.getElementById('tab-mode-pipeline').classList.toggle('active', mode === 'pipeline');
+  document.getElementById('tab-mode-alerts').classList.toggle('active', mode === 'alerts');
+  const bannerMsg = document.getElementById('feed-status-msg');
+  if (mode === 'pipeline') {
+    bannerMsg.textContent = 'All government awards ingested across federal procurement feeds with materiality scores';
+  } else {
+    bannerMsg.textContent = 'High-conviction small/mid-cap mega-catalysts scoring ≥ 70 materiality';
+  }
+  applyFilters();
+}
+
+function toggleAdvancedFilters() {
+  _advFiltersOpen = !_advFiltersOpen;
+  const drawer = document.getElementById('advanced-filters');
+  const btn = document.getElementById('btn-toggle-filters');
+  const chevron = document.getElementById('adv-filter-chevron');
+  if (_advFiltersOpen) {
+    drawer.style.display = 'flex';
+    btn.classList.add('active');
+    chevron.textContent = '▴';
+  } else {
+    drawer.style.display = 'none';
+    btn.classList.remove('active');
+    chevron.textContent = '▾';
+  }
+}
+
+let _debounceTimer = null;
+function debounceApplyFilters() {
+  clearTimeout(_debounceTimer);
+  _debounceTimer = setTimeout(() => applyFilters(), 200);
+}
 
 function togglePreset(key) {
   _presets[key] = !_presets[key];
@@ -1335,20 +1521,20 @@ function postedAfterDate() {
 }
 
 function freshBadge(postedDate) {
-  if (!postedDate) return '<span class="fresh-badge fresh-old" title="Undated backfill">UNDATED</span>';
+  if (!postedDate) return '';
   const posted = new Date(postedDate);
   const ageDays = (new Date() - posted) / (1000 * 60 * 60 * 24);
   if (ageDays <= 1)  return '<span class="fresh-badge fresh-now">NEW</span>';
   if (ageDays <= 7)  return '<span class="fresh-badge fresh-now">FRESH</span>';
   if (ageDays <= 30) return '<span class="fresh-badge fresh-week">RECENT</span>';
-  if (ageDays <= 365) return '';
-  return '<span class="fresh-badge fresh-old">OLD</span>';
+  return '';
 }
 
 function toggleLevel(lvl) {
   const pill = document.querySelector(`.level-pill[data-lvl="${lvl}"]`);
   if (_levels.has(lvl)) { _levels.delete(lvl); pill.classList.remove('on'); }
   else                  { _levels.add(lvl);    pill.classList.add('on'); }
+  updateFilterActiveCount();
   applyFilters();
 }
 
@@ -1383,6 +1569,7 @@ function onAmountChange() {
     _presets['50m'] = false;
     document.getElementById('f-preset-50m').classList.remove('on');
   }
+  updateFilterActiveCount();
   applyFilters();
 }
 
@@ -1393,12 +1580,32 @@ function onCapChange() {
     _presets['smid'] = false;
     document.getElementById('f-preset-smid').classList.remove('on');
   }
+  updateFilterActiveCount();
   applyFilters();
+}
+
+function updateFilterActiveCount() {
+  let count = 0;
+  if (_levels.size > 0 && _levels.size < 4) count++;
+  const minScore = parseInt(document.getElementById('f-min-score').value, 10);
+  const maxScore = parseInt(document.getElementById('f-max-score').value, 10);
+  if (minScore > 0 || maxScore < 100) count++;
+  if (document.getElementById('f-agency').value) count++;
+  if (document.getElementById('f-source').value) count++;
+  if (document.getElementById('f-sector').value) count++;
+  if (document.getElementById('f-min-amount-m').value || document.getElementById('f-max-amount-m').value) count++;
+  if (document.getElementById('f-min-mc-m').value || document.getElementById('f-max-mc-b').value) count++;
+
+  const badge = document.getElementById('adv-filter-count');
+  if (badge) {
+    badge.textContent = count;
+    badge.style.display = count > 0 ? 'inline-block' : 'none';
+  }
 }
 
 function buildParams() {
   const p = new URLSearchParams();
-  p.set('limit', '150');
+  p.set('limit', '200');
 
   const levelsArr = Array.from(_levels);
   if (levelsArr.length > 0 && levelsArr.length < 4) {
@@ -1449,20 +1656,20 @@ function activeFilterTags() {
   const tags = [];
   const customMinAmt = document.getElementById('f-min-amount-m').value;
   if (customMinAmt !== '') tags.push([`Awd ≥ $${customMinAmt}M`, () => { document.getElementById('f-min-amount-m').value=''; applyFilters(); }]);
-  else if (_presets['50m']) tags.push(['Awd ≥ $50M (preset)', () => togglePreset('50m')]);
+  else if (_presets['50m']) tags.push(['Awd ≥ $50M', () => togglePreset('50m')]);
 
   const customMaxMC = document.getElementById('f-max-mc-b').value;
   if (customMaxMC !== '') tags.push([`Cap ≤ $${customMaxMC}B`, () => { document.getElementById('f-max-mc-b').value=''; applyFilters(); }]);
-  else if (_presets['smid']) tags.push(['Small/Mid Cap (preset)', () => togglePreset('smid')]);
+  else if (_presets['smid']) tags.push(['SMID Cap', () => togglePreset('smid')]);
 
-  if (_claudeOnly) tags.push(['Claude Analyzed', () => toggleClaudeFilter()]);
-  if (_freshness !== 'all') tags.push([_freshness === '1' ? '24h window' : `${_freshness}d window`, () => setFreshness('all')]);
+  if (_claudeOnly) tags.push(['Claude', () => toggleClaudeFilter()]);
+  if (_freshness !== 'all') tags.push([_freshness === '1' ? '24h' : `${_freshness}d`, () => setFreshness('all')]);
 
   const ticker = document.getElementById('f-ticker').value.trim();
-  if (ticker) tags.push([`Ticker: ${ticker}`, () => { document.getElementById('f-ticker').value=''; applyFilters(); }]);
+  if (ticker) tags.push([`${ticker}`, () => { document.getElementById('f-ticker').value=''; applyFilters(); }]);
 
   const agency = document.getElementById('f-agency').value;
-  if (agency) tags.push([`Agency: ${agency}`, () => { document.getElementById('f-agency').value=''; applyFilters(); }]);
+  if (agency) tags.push([`${agency.slice(0, 16)}…`, () => { document.getElementById('f-agency').value=''; applyFilters(); }]);
 
   return tags;
 }
@@ -1486,15 +1693,16 @@ function resetFilters() {
   document.getElementById('f-min-mc-m').value = '';
   document.getElementById('f-max-mc-b').value = '';
 
-  _presets['50m'] = true;
-  document.getElementById('f-preset-50m').classList.add('on');
-  _presets['smid'] = true;
-  document.getElementById('f-preset-smid').classList.add('on');
+  _presets['50m'] = false;
+  document.getElementById('f-preset-50m').classList.remove('on');
+  _presets['smid'] = false;
+  document.getElementById('f-preset-smid').classList.remove('on');
 
   _claudeOnly = false;
   document.getElementById('f-claude-btn').classList.remove('on');
 
-  setFreshness('7');
+  setFreshness('all');
+  updateFilterActiveCount();
 }
 
 // ── Data & Alerts ─────────────────────────────────────────
@@ -1527,36 +1735,21 @@ async function refreshAll() {
   await applyFilters();
 
   document.getElementById('last-refresh-label').textContent =
-    'Synced ' + new Date().toLocaleTimeString();
+    'Synced ' + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
 }
 
 async function applyFilters() {
   const container = document.getElementById('alerts-container');
-  container.innerHTML = '<div class="loading"><div class="spinner"></div> Filtering…</div>';
+  container.innerHTML = '<div class="loading"><div class="spinner"></div> Ingesting feed…</div>';
 
   const params = buildParams();
-  _alerts = await fetch('/api/alerts?' + params).then(r=>r.json()).catch(()=>[]);
+  let url = _feedMode === 'alerts' ? ('/api/alerts?' + params) : ('/api/awards?' + params + '&sort=amount_desc');
+  _alerts = await fetch(url).then(r=>r.json()).catch(()=>[]);
   _expandedRow = null;
 
   renderAlerts(_alerts);
   renderFilterStatus();
-  renderFreshnessNote();
-}
-
-function renderFreshnessNote() {
-  const note = document.getElementById('freshness-note');
-  if (!note) return;
-  const n = _alerts.length;
-  if (_freshness === 'all') {
-    note.textContent = `${n} total alerts in view`;
-    return;
-  }
-  const lbl = _freshness === '1' ? 'last 24h' : `last ${_freshness}d`;
-  if (n === 0) {
-    note.innerHTML = `<span style="color:var(--orange)">0 fresh alerts in ${lbl}</span> — check <a href="javascript:void(0)" onclick="switchPage('contracts')" style="color:var(--amber)">All Contracts pipeline</a> for watchlist flow.`;
-  } else {
-    note.textContent = `${n} alerts in ${lbl}`;
-  }
+  updateFilterActiveCount();
 }
 
 function populateFilterDropdowns(opts) {
@@ -1583,7 +1776,7 @@ function renderFilterStatus() {
   const tags = activeFilterTags();
   const statusEl = document.getElementById('filter-status');
   if (!tags.length) { statusEl.innerHTML = ''; return; }
-  statusEl.innerHTML = 'Active: ' + tags.map(([label, fn], i) =>
+  statusEl.innerHTML = tags.map(([label, fn], i) =>
     `<span class="active-filter-tag" onclick="_clearTag(${i})">${esc(label)} ×</span>`
   ).join('');
   window._filterTagFns = tags.map(([,fn])=>fn);
@@ -1600,19 +1793,21 @@ function renderStats(s) {
   document.getElementById('badge-contracts').textContent = s.total_awards_scanned || 0;
 
   strip.innerHTML = [
-    stat('Catalyst Alerts',  s.total_alerts,               'high materiality ≥70', 'color:var(--amber)'),
-    stat('RED / ORANGE',    (lvl.RED||0) + ' / ' + (lvl.ORANGE||0), 'critical alpha', 'color:var(--red)'),
-    stat('Avg Alert Score', (s.avg_score||0)+'',          '/ 100'),
-    stat('Pipeline Flow',   fmt(s.total_contract_value),  `${s.total_awards_scanned||0} total awards`),
-    stat('Active Tickers',  s.unique_award_tickers||s.unique_tickers||0, 'public beneficiaries'),
-    stat('AI Analysis',     s.claude_enriched||0,         'Claude enriched'),
+    statItem('Catalyst Alerts', s.total_alerts || 0, '≥70 score', 'color:var(--amber)'),
+    statItem('Red/Orange', (lvl.RED||0) + ' / ' + (lvl.ORANGE||0), 'critical', 'color:var(--red)'),
+    statItem('Avg Score', (s.avg_award_score || s.avg_score || 0) + '', '/ 100'),
+    statItem('Pipeline Flow', fmt(s.total_contract_value), `${s.total_awards_scanned||0} awards`, 'color:var(--green)'),
+    statItem('Active Tickers', s.unique_award_tickers||s.unique_tickers||0, 'beneficiaries'),
+    statItem('AI Analysis', s.claude_enriched||0, 'enriched'),
   ].join('');
 }
 
-function stat(label, value, sub, style='') {
-  return `<div class="stat-card"><div class="stat-label">${label}</div>
-    <div class="stat-value" style="${style}">${esc(String(value))}</div>
-    ${sub ? `<div class="stat-sub">${esc(sub)}</div>` : ''}</div>`;
+function statItem(label, value, sub, valStyle='') {
+  return `<div class="stat-item">
+    <span class="stat-label">${label}</span>
+    <span class="stat-value" style="${valStyle}">${esc(String(value))}</span>
+    ${sub ? `<span class="stat-sub">${esc(sub)}</span>` : ''}
+  </div>`;
 }
 
 // ── Alert Table & Dossier ─────────────────────────────────
@@ -1634,17 +1829,27 @@ function sortBy(key) {
 
 function renderAlerts(alerts) {
   const container = document.getElementById('alerts-container');
-  document.getElementById('alert-count').textContent = alerts.length + ' catalysts';
+  document.getElementById('alert-count').textContent = alerts.length + (_feedMode === 'alerts' ? ' catalysts' : ' awards');
 
   if (!alerts.length) {
-    container.innerHTML = `<div class="empty">
-      No catalyst alerts match the current filters.<br>
-      <span style="color:var(--text-dim);font-size:11px">
-        Try widening a range, removing a search term,
-        <a href="javascript:void(0)" onclick="resetFilters()" style="color:var(--amber)">reset to defaults</a>,
-        or inspect the <a href="javascript:void(0)" onclick="switchPage('contracts')" style="color:var(--amber)">All Contracts pipeline (100+ awards)</a>.
-      </span>
-    </div>`;
+    if (_feedMode === 'alerts') {
+      container.innerHTML = `<div class="empty" style="padding:40px 20px">
+        <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px">No critical alerts (score ≥ 70) matching active filters</div>
+        <div style="color:var(--text-dim);font-size:11.5px;max-width:500px;margin:0 auto 16px">
+          The scanner has recorded 100+ awards in the pipeline. View active pipeline flow or widen your filter range.
+        </div>
+        <button class="btn-topbar" onclick="setFeedMode('pipeline')" style="margin:0 auto;border-color:var(--amber);color:var(--amber)">
+          View Scored Pipeline Flow (${_stats.total_awards_scanned || 119} awards) →
+        </button>
+      </div>`;
+    } else {
+      container.innerHTML = `<div class="empty">
+        No contracts match the current filters.<br>
+        <span style="color:var(--text-dim);font-size:11px">
+          Try clearing search or <a href="javascript:void(0)" onclick="resetFilters()" style="color:var(--amber)">resetting filters</a>.
+        </span>
+      </div>`;
+    }
     return;
   }
 
@@ -1654,10 +1859,11 @@ function renderAlerts(alerts) {
     data.sort((a,b) => _sortDir * (fn(b) < fn(a) ? -1 : fn(b) > fn(a) ? 1 : 0));
   }
 
-  function sortTh(label, key, title='') {
+  function sortTh(label, key, title='', style='') {
     const cls = _sortKey===key ? (_sortDir<0?'desc':'asc') : '';
     const tip = title ? ` title="${esc(title)}"` : '';
-    return `<th onclick="sortBy('${key}')"${tip}>${label}<span class="sort-arrow ${cls} ${_sortKey===key?'active':''}"></span></th>`;
+    const st = style ? ` style="${style}"` : '';
+    return `<th onclick="sortBy('${key}')"${tip}${st}>${label}<span class="sort-arrow ${cls} ${_sortKey===key?'active':''}"></span></th>`;
   }
 
   const rows = data.map((a,i) => alertRow(a, i)).join('');
@@ -1665,17 +1871,17 @@ function renderAlerts(alerts) {
   container.innerHTML = `
     <table class="alerts-table">
       <thead><tr>
-        <th style="width:22px"></th>
-        <th>Level</th>
-        ${sortTh('Score','score')}
-        ${sortTh('Ticker','ticker')}
-        <th>Awardee</th>
+        <th style="width:20px"></th>
+        <th style="width:70px">Level</th>
+        ${sortTh('Score','score','','width:85px')}
+        ${sortTh('Ticker','ticker','','width:110px')}
+        <th>Awardee & Description</th>
         ${sortTh('Award Amount','amount')}
         ${sortTh('Market Cap','mktcap')}
         ${sortTh('Award/MC','ratio')}
         <th>Sector</th>
         <th>Agency</th>
-        ${sortTh('Posted Date','posted')}
+        ${sortTh('Date','posted')}
       </tr></thead>
       <tbody id="alerts-tbody">${rows}</tbody>
     </table>`;
@@ -1687,17 +1893,30 @@ function alertRow(a, i) {
   const freshTag = freshBadge(a.posted_date || a.award_date);
   const ratioVal = pct(a.award_amount, a.market_cap);
   const ratioCls = pctClass(a.award_amount, a.market_cap);
-  const sectorHtml = a.sector ? `<span class="sector-badge">${esc(a.sector)}</span>` : '<span style="color:var(--text-mute);font-size:11px">—</span>';
+  const sectorHtml = a.sector ? `<span class="sector-badge">${esc(a.sector)}</span>` : '<span style="color:var(--text-mute);font-size:10px">—</span>';
+  const tickerHtml = a.ticker
+    ? `<span class="ticker-cell" onclick="event.stopPropagation();copyText('${esc(a.ticker)}','Ticker')">${esc(a.ticker)}</span>`
+    : `<span class="unresolved-badge">UNRESOLVED</span>`;
+
+  const scoreBar = a.materiality_score != null ? `
+    <div class="score-bar-wrap">
+      <div class="score-bar-bg"><div class="score-bar-fill" style="width:${a.materiality_score}%"></div></div>
+      <span class="score-num">${a.materiality_score}</span>
+    </div>` : '<span style="color:var(--text-mute);font-family:var(--mono)">—</span>';
+
+  const levelBadge = a.alert_level
+    ? `<span class="level-badge level-${esc(a.alert_level)}">${esc(a.alert_level)}</span>`
+    : '<span style="color:var(--text-mute);font-size:10px">—</span>';
 
   return `<tr class="data-row" data-idx="${i}" onclick="toggleExpand(${i})">
     <td><span class="chevron">›</span></td>
-    <td><span class="level-badge level-${esc(a.alert_level)}">${esc(a.alert_level)}</span></td>
-    <td><div class="score-bar-wrap">
-      <div class="score-bar-bg"><div class="score-bar-fill" style="width:${a.materiality_score}%"></div></div>
-      <span class="score-num">${a.materiality_score}</span>
-    </div></td>
-    <td class="ticker-cell" onclick="event.stopPropagation();copyText('${esc(a.ticker)}','Ticker')">${esc(a.ticker)}${freshTag}${idiqTag}${modTag}</td>
-    <td><div class="awardee-cell" title="${esc(a.awardee_name_raw)}">${esc(a.awardee_name_raw)}</div></td>
+    <td>${levelBadge}</td>
+    <td>${scoreBar}</td>
+    <td>${tickerHtml}${freshTag}${idiqTag}${modTag}</td>
+    <td>
+      <div class="awardee-cell" title="${esc(a.awardee_name_raw)}">${esc(a.awardee_name_raw)}</div>
+      ${a.description ? `<div style="font-size:10.5px;color:var(--text-dim);max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(a.description)}">${esc(a.description)}</div>` : ''}
+    </td>
     <td class="amount-cell">${fmt(a.award_amount)}</td>
     <td class="mktcap-cell">${fmt(a.market_cap)}</td>
     <td class="ratio-cell ${ratioCls}">${ratioVal}</td>
