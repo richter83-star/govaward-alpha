@@ -40,22 +40,36 @@ function Run-Scan($name, $argList) {
 
 $exit1 = Run-Scan "scan-sam"         @("scan-sam",         "--lookback", "1")
 $exit2 = Run-Scan "scan-usaspending" @("scan-usaspending", "--lookback", "2")
+$exit3 = Run-Scan "scan-defense"     @("scan-defense",     "--lookback", "1")
 
 # Backfill Claude analysis on any new alerts that fired (also picks up
 # any prior alerts that were never enriched). Cap at 25 per run so a single
 # day can't blow up the Anthropic bill if something goes weird.
-$exit3 = Run-Scan "enrich-alerts"    @("enrich-alerts", "--limit", "25", "--sleep", "0.3")
+$exit4 = Run-Scan "enrich-alerts"    @("enrich-alerts", "--limit", "25", "--sleep", "0.3")
 
 # Daily report — written to logs/reports/YYYY-MM-DD.md and emailed if
 # EMAIL_ENABLED=true. --no-show suppresses the stdout dump (the log file
 # already captures everything from the scan steps above).
-$exit4 = Run-Scan "daily-report"     @("daily-report", "--hours", "24", "--fresh-days", "7", "--no-show")
+$exit5 = Run-Scan "daily-report"     @("daily-report", "--hours", "24", "--fresh-days", "7", "--no-show")
 
 $stamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
 Add-Content -Path $logFile -Value ""
-Add-Content -Path $logFile -Value "==================== $stamp  done (sam=$exit1 usaspending=$exit2 enrich=$exit3 report=$exit4) ===================="
+Add-Content -Path $logFile -Value "==================== $stamp  done (sam=$exit1 usaspending=$exit2 defense=$exit3 enrich=$exit4 report=$exit5) ===================="
 
-# Surface only a hard launch failure to the scheduler. Scans/enrich/report
-# each log their own errors and exit 0 on transient API failures.
-if ($exit1 -ne 0 -and $exit2 -ne 0 -and $exit4 -ne 0) { exit 1 }
+# enrich-alerts is deliberately excluded from the failure check: it exits 1
+# when ANTHROPIC_API_KEY is unset, and Claude enrichment is optional by
+# design. Log it, don't fail the scheduled task over it.
+if ($exit4 -ne 0) {
+    Add-Content -Path $logFile -Value "NOTE: enrich-alerts exited $exit4 (expected when ANTHROPIC_API_KEY is unset; Claude enrichment is optional)."
+}
+
+# Report failure if any *required* step failed to launch. Each step already
+# exits 0 on transient API errors and logs its own detail, so a non-zero code
+# here means the CLI itself did not run. Previously this required all three
+# to fail before anything surfaced, so a broken scan-sam went unnoticed.
+$failed = @($exit1, $exit2, $exit5) | Where-Object { $_ -ne 0 }
+if ($failed.Count -gt 0) {
+    Add-Content -Path $logFile -Value "FAILED: $($failed.Count) required step(s) returned a non-zero exit code."
+    exit 1
+}
 exit 0

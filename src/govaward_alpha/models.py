@@ -7,6 +7,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from govaward_alpha.timeutil import utcnow
+
 
 class Award(BaseModel):
     """Normalized award record, ready for DB persistence."""
@@ -53,10 +55,14 @@ class Award(BaseModel):
     # Free text
     description: str = ""
 
+    # Scoring / materiality (populated during enrichment)
+    materiality_score: int | None = None
+    alert_level: str | None = None
+
     # Dedup / audit
     content_hash: str = ""
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utcnow)
+    updated_at: datetime = Field(default_factory=utcnow)
 
 
 class Company(BaseModel):
@@ -97,7 +103,7 @@ class AlertRecord(BaseModel):
     sent_telegram: bool = False
     sent_discord: bool = False
     claude_analysis_json: str = ""
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utcnow)
 
 
 class SourceRun(BaseModel):
@@ -105,7 +111,7 @@ class SourceRun(BaseModel):
 
     id: int | None = None
     source: str
-    started_at: datetime = Field(default_factory=datetime.utcnow)
+    started_at: datetime = Field(default_factory=utcnow)
     finished_at: datetime | None = None
     status: str = "running"      # running | success | error
     records_seen: int = 0

@@ -17,7 +17,7 @@ from datetime import date, timedelta
 from typing import Any
 
 import httpx
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
 from govaward_alpha.config import get_settings
 from govaward_alpha.models import Award
@@ -36,7 +36,35 @@ _PAGE_SIZE = 100
 _REQUEST_DELAY = 1.2  # seconds between pages to stay under rate limit
 
 
+def _is_retryable_error(exc: BaseException) -> bool:
+    """Only retry on network/transport errors, 5xx server errors, or 429 rate limits.
+
+    Never retry on 400, 401, 403, or 404 client errors which indicate invalid
+    keys or bad query parameters.
+    """
+    if isinstance(exc, httpx.HTTPStatusError):
+        status = exc.response.status_code if exc.response is not None else 0
+        return status == 429 or status >= 500
+    if isinstance(exc, httpx.TransportError):
+        return True
+    return False
+
+
+def _is_placeholder_key(key: str) -> bool:
+    """Detect unconfigured or placeholder SAM API keys."""
+    k = key.strip().lower()
+    if not k:
+        return True
+    return (
+        k.startswith("your_")
+        or k.startswith("<")
+        or k.endswith("_here")
+        or k in {"test", "placeholder", "xxx", "none", "null", "todo"}
+    )
+
+
 @retry(
+    retry=retry_if_exception(_is_retryable_error),
     stop=stop_after_attempt(4),
     wait=wait_exponential(multiplier=2, min=5, max=30),
     reraise=True,
@@ -81,8 +109,11 @@ def fetch_awards(lookback_days: int | None = None) -> list[Award]:
     Applies award_min_amount filter where amount is parseable.
     """
     settings = get_settings()
-    if not settings.sam_api_key:
-        logger.warning("SAM_API_KEY not set — skipping SAM.gov source.")
+    if _is_placeholder_key(settings.sam_api_key):
+        logger.warning(
+            "SAM_API_KEY is not configured (or is a placeholder) — skipping SAM.gov source. "
+            "Get a free API key at sam.gov (sign in → avatar → API Key Management)."
+        )
         return []
 
     days = lookback_days if lookback_days is not None else settings.lookback_days

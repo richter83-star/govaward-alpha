@@ -16,6 +16,7 @@ from typing import Any
 
 from govaward_alpha.config import get_settings
 from govaward_alpha.models import Company
+from govaward_alpha.timeutil import utcfromtimestamp, utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ def _load_cache(ticker: str) -> dict | None:
     p = _cache_path(ticker)
     if not p.exists():
         return None
-    age = datetime.utcnow() - datetime.utcfromtimestamp(p.stat().st_mtime)
+    age = utcnow() - utcfromtimestamp(p.stat().st_mtime)
     if age > timedelta(hours=_CACHE_TTL_HOURS):
         return None
     try:
@@ -97,7 +98,7 @@ def fetch_market_data(ticker: str) -> Company | None:
         "sector": info.get("sector") or "",
         "industry": info.get("industry") or "",
         "exchange": info.get("exchange") or "",
-        "last_market_data_refresh": datetime.utcnow().isoformat(),
+        "last_market_data_refresh": utcnow().isoformat(),
     }
 
     _save_cache(ticker, data)

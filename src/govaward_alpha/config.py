@@ -56,6 +56,11 @@ class Settings(BaseSettings):
     anthropic_api_key: str = Field(default="", alias="ANTHROPIC_API_KEY")
     claude_model: str = Field(default="claude-haiku-4-5-20251001", alias="CLAUDE_MODEL")
 
+    # SEC — the EDGAR fair-access policy asks automated clients to identify
+    # themselves with a real contact address. Set SEC_CONTACT_EMAIL in .env;
+    # requests still work without it but SEC may throttle or block them.
+    sec_contact_email: str = Field(default="", alias="SEC_CONTACT_EMAIL")
+
     # Core thresholds
     award_min_amount: float = Field(default=50_000_000, alias="AWARD_MIN_AMOUNT")
     lookback_days: int = Field(default=3, alias="LOOKBACK_DAYS")

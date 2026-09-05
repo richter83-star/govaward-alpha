@@ -42,7 +42,7 @@ _BROWSER_HEADERS = [
     ("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"),
     ("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"),
     ("Accept-Language", "en-US,en;q=0.9"),
-    ("Accept-Encoding", "gzip, deflate, br"),
+    ("Accept-Encoding", "gzip, deflate"),
     ("Connection", "keep-alive"),
     ("Upgrade-Insecure-Requests", "1"),
     ("Sec-Fetch-Dest", "document"),
@@ -206,12 +206,50 @@ _AWARD_AMOUNT_LINE = re.compile(
     r"\$[\d,]+(?:\.\d+)?(?:\s*(?:million|billion|thousand|[mMbBkK]))?",
     re.IGNORECASE,
 )
+# DoD blocks open with the awardee, then a place of performance, then the
+# award verb: "Raytheon Co., Tucson, Arizona, is being awarded ...".
+# The name runs up to the first comma; the verb clause anchors the match so a
+# block that does not follow the house style falls through to the plain
+# first-comma split rather than capturing something arbitrary.
+# NOTE: the character class must allow lower case — DoD mixes "Raytheon Co."
+# and "LOCKHEED MARTIN CORP." in the same page.
 _AWARDEE_PATTERN = re.compile(
-    r"^([A-Z][A-Z\s,\.&'/-]{3,80?}?)(?:,|\s+(?:is\s+being|has\s+been|was\s+awarded))",
+    r"^([A-Za-z][A-Za-z0-9\s,\.&'/-]{3,120}?)"
+    r"\s*,\s*[^,]{2,60},"                      # city (and the comma after it)
+    r"[^,]{0,60},?\s*"                         # optional state / country
+    r"(?:is\s+being|has\s+been|was)\s+awarded",
 )
+
+# Real DoD contract numbers, e.g. "W912DY-26-C-0042", "N00019-26-D-0011",
+# "SPRPA1-26-C-1234". The previous catch-all `\w{10,20}` alternative matched
+# almost any long word, so ordinary prose became a "contract number".
 _CONTRACT_NUMBER_RE = re.compile(
-    r"\b([A-Z]{1,2}\d{2}[A-Z]{1,2}-\d{2,}-[A-Z]-\d{4,}|[A-Z]{3,6}-\d{2,}-[A-Z]-\d{4,}|\w{10,20})\b"
+    r"\b([A-Z]{1,2}\d{2,5}[A-Z]{0,2}-\d{2}-[A-Z]-\d{3,5}"
+    r"|[A-Z]{3,6}\d?-\d{2}-[A-Z]-\d{3,5})\b"
 )
+
+
+def _split_blocks(body: Any) -> list[str]:
+    """Split a contracts article into one text block per award.
+
+    Defense.gov puts each company's award in its own ``<p>``, so paragraphs
+    are the real record boundary. Falling back to a blank-line split of the
+    whole article does not work on this markup: ``get_text("\\n")`` joins
+    elements with a *single* newline, so a blank-line pattern matches nothing
+    and the entire page collapses into one block — which then yields one
+    award per article (with the page's largest dollar figure) instead of one
+    per company. Paragraph splitting first, blank lines only as a fallback
+    for markup without ``<p>`` tags.
+    """
+    paragraphs = [
+        p.get_text(" ", strip=True) for p in body.find_all("p")
+    ] if hasattr(body, "find_all") else []
+    blocks = [p for p in paragraphs if p]
+    if blocks:
+        return blocks
+
+    text = body.get_text("\n", strip=True)
+    return [b.strip() for b in _COMPANY_BLOCK_SPLIT.split(text) if b.strip()]
 
 
 def _parse_article(html: str, source_url: str, article_date: date) -> list[Award]:
@@ -224,10 +262,8 @@ def _parse_article(html: str, source_url: str, article_date: date) -> list[Award
         or soup.find("main")
         or soup
     )
-    text = body.get_text("\n", strip=True) if body else soup.get_text("\n", strip=True)
-
     awards: list[Award] = []
-    blocks = [b.strip() for b in _COMPANY_BLOCK_SPLIT.split(text) if b.strip()]
+    blocks = _split_blocks(body or soup)
 
     for block in blocks:
         if not _AWARD_AMOUNT_LINE.search(block):
@@ -315,8 +351,26 @@ def _parse_block(block: str, source_url: str, article_date: date, min_amount: fl
     )
 
 
-def fetch_awards(lookback_days: int | None = None) -> list[Award]:
-    """Fetch and parse DoD contract awards from the last N days."""
+def fetch_awards(
+    lookback_days: int | None = None,
+    file_path: str | Path | None = None,
+) -> list[Award]:
+    """Fetch and parse DoD contract awards.
+
+    Supports direct local HTML file ingest (e.g. from headless browser, manual save,
+    or test fixture) via ``file_path``, falling back to network discovery.
+    """
+    if file_path:
+        p = Path(file_path)
+        if not p.exists():
+            logger.error("Defense.gov ingest file not found: %s", file_path)
+            return []
+        text = p.read_text(encoding="utf-8", errors="replace")
+        today = date.today()
+        awards = _parse_article(text, str(p), today)
+        logger.info("Defense.gov: parsed %d awards from local file %s", len(awards), p.name)
+        return awards
+
     settings = get_settings()
     days = lookback_days if lookback_days is not None else settings.lookback_days
 

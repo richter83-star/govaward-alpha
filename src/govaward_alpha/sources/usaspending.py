@@ -14,6 +14,7 @@ Source reference (schema/terminology only): https://github.com/fedspendingtransp
 from __future__ import annotations
 
 import logging
+import time
 from datetime import date, timedelta
 from typing import Any
 
@@ -33,10 +34,11 @@ logger = logging.getLogger(__name__)
 
 _BASE = "https://api.usaspending.gov"
 _SEARCH = f"{_BASE}/api/v2/search/spending_by_award/"
-_AWARD_DETAIL = f"{_BASE}/api/v2/awards/{{award_id}}/"
 
 _HEADERS = {"Content-Type": "application/json"}
 _PAGE_SIZE = 100
+_MAX_PAGES = 50            # hard stop: 5,000 awards per search
+_REQUEST_DELAY = 0.5       # seconds between pages, to stay a good citizen
 
 
 @retry(
@@ -46,17 +48,6 @@ _PAGE_SIZE = 100
 )
 def _post(client: httpx.Client, url: str, payload: dict) -> dict:
     resp = client.post(url, json=payload, headers=_HEADERS, timeout=30)
-    resp.raise_for_status()
-    return resp.json()
-
-
-@retry(
-    stop=stop_after_attempt(3),
-    wait=wait_exponential(multiplier=1, min=2, max=10),
-    reraise=True,
-)
-def _get(client: httpx.Client, url: str) -> dict:
-    resp = client.get(url, headers=_HEADERS, timeout=30)
     resp.raise_for_status()
     return resp.json()
 
@@ -172,7 +163,15 @@ def _search_awards(start_date: str, end_date: str, min_amount: float) -> list[Aw
             )
             if not has_next:
                 break
+            if page >= _MAX_PAGES:
+                logger.warning(
+                    "USAspending: stopping at the %d-page cap (%d awards) — "
+                    "more results exist. Narrow the date range to see them.",
+                    _MAX_PAGES, len(awards),
+                )
+                break
             page += 1
+            time.sleep(_REQUEST_DELAY)
 
     logger.info("USAspending: retrieved %d awards (%s to %s)", len(awards), start_date, end_date)
     return awards
@@ -270,34 +269,3 @@ def _parse_date(val: str | None) -> date | None:
         except ValueError:
             continue
     return None
-
-
-# ---------------------------------------------------------------------------
-# Enrichment: fetch detail for a known award ID
-# ---------------------------------------------------------------------------
-
-def enrich_award(award_id: str) -> dict[str, Any]:
-    """
-    Fetch detail from USAspending /api/v2/awards/<id>/.
-    Returns raw dict; caller decides what to merge.
-    """
-    url = _AWARD_DETAIL.format(award_id=award_id)
-    with httpx.Client() as client:
-        try:
-            return _get(client, url)
-        except Exception as exc:
-            logger.warning("USAspending enrich failed for %s: %s", award_id, exc)
-            return {}
-
-
-def search_recipient(name: str) -> list[dict]:
-    """Autocomplete recipient lookup for company name resolution."""
-    url = f"{_BASE}/api/v2/autocomplete/recipient/"
-    with httpx.Client() as client:
-        try:
-            resp = client.post(url, json={"search_text": name, "limit": 5}, headers=_HEADERS, timeout=10)
-            resp.raise_for_status()
-            return resp.json().get("results", [])
-        except Exception as exc:
-            logger.debug("USAspending recipient search failed: %s", exc)
-            return []

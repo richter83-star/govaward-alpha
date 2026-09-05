@@ -317,7 +317,7 @@ full backend. See `docs/references.md` for all endpoint references.
 
 ## Known Limitations
 
-- **USAspending may lag** 1–3 days behind SAM.gov for new awards — use it as confirmation.
+- **USAspending may lag** roughly 7–14 days behind SAM.gov for new awards — use it as confirmation, not the primary signal.
 - **DoD announcement parsing is best-effort** — Defense.gov pages are prose and format varies.
 - **Subsidiary-parent mapping is imperfect** — many government contractors use subsidiary names; add overrides manually as you discover gaps.
 - **Contract ceiling ≠ immediate revenue** — IDIQ/task order ceilings are maximum values, not guaranteed revenue. The scoring engine penalizes these but cannot fully account for contract economics.

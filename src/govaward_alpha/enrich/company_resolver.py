@@ -2,10 +2,15 @@
 
 Resolution priority:
   1. Manual override YAML (exact normalized key match)
-  2. SEC company_tickers.json (exact normalized match)
-  3. SEC company_tickers.json (rapidfuzz partial match, score >= 88)
-  4. yfinance fallback search (ticker symbol guess)
-  5. Unresolved (stored without alert)
+  2. Manual override YAML (substring match, override key longer than 6 chars)
+  3. SEC company_tickers.json (exact normalized match)
+  4. SEC company_tickers.json (rapidfuzz WRatio >= 92, normalized name >= 8 chars)
+  5. yfinance search fallback (partial_ratio >= 90 AND token_set_ratio >= 80)
+  6. Unresolved (stored without alert; surfaces in `govaward unresolved`)
+
+Thresholds are deliberately tight: most federal awards go to private firms
+and nonprofits, so a loose match invents a false alert on an unrelated public
+ticker. Prefer returning None and letting the operator add an override.
 """
 
 from __future__ import annotations
@@ -136,10 +141,25 @@ def resolve(awardee_name_raw: str) -> dict[str, str | None]:
             scorer=fuzz.WRatio,
             limit=_MAX_FUZZY_CANDIDATES,
         )
+        awardee_head = (normalized.split() or [""])[0]
         for match_key, score, _ in candidates:
             if score >= _FUZZY_THRESHOLD:
                 # Extra guard: reject if matched key is very short (generic word)
                 if len(match_key) < _MIN_NORM_LEN:
+                    continue
+                # Head-token guard. WRatio contains a partial-ratio term, so a
+                # single shared generic word clears the threshold on its own:
+                # "LS TECHNOLOGIES LLC" normalizes to "ls technologies" and
+                # scored 95 against "technologies" — the key left over after
+                # "GLOBAL TECHNOLOGIES LTD" loses its suffix words — mapping a
+                # private FAA contractor onto an unrelated penny stock.
+                # Requiring the leading (most distinctive) token to agree is
+                # the same guard the yfinance fallback already applies.
+                if awardee_head != (match_key.split() or [""])[0]:
+                    logger.debug(
+                        "Rejected SEC fuzzy '%s' → '%s' (score=%d): head token differs",
+                        normalized, match_key, score,
+                    )
                     continue
                 entry = ticker_map[match_key]
                 logger.debug(

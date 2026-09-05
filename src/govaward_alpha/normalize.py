@@ -28,48 +28,77 @@ _UNIT_MAP = {
     "k": _THOUSAND,
 }
 
-# Patterns that extract the leading numeric token from an amount phrase
-_AMOUNT_RE = re.compile(
-    r"""
-    [\$]?                           # optional dollar sign
-    \s*
-    ([\d,]+(?:\.\d+)?)              # numeric part
-    \s*
-    (billion|billions|million|millions|thousand|thousands|[bBmMkK])?  # unit
-    """,
-    re.VERBOSE | re.IGNORECASE,
+# Amount patterns.
+#
+# Prose is the hard case. A bare "first number wins" scan mis-reads
+# "5-year contract valued at $95,000,000" as $5 and a contract number
+# ("W91234-26-C-0001") as $91,234. So an amount in prose must be anchored by
+# either a "$" sign or an explicit unit word; a bare numeric is only trusted
+# when it is the *entire* input (structured API fields like "95000000").
+
+_UNIT_GROUP = r"(billion|billions|million|millions|thousand|thousands|[bmk]\b)"
+
+# The whole (stripped) input is just a number — a structured field value.
+_BARE_NUMERIC_RE = re.compile(r"^\$?\s*([\d,]+(?:\.\d+)?)\s*$")
+
+# Prose, "$" anchored. Unit optional: "$95,000,000", "$1.2 billion", "$75M".
+_DOLLAR_ANCHORED_RE = re.compile(
+    r"\$\s*([\d,]+(?:\.\d+)?)\s*" + _UNIT_GROUP + r"?",
+    re.IGNORECASE,
 )
+
+# Prose, unit anchored — no "$" but an explicit scale word: "75 million".
+_UNIT_ANCHORED_RE = re.compile(
+    r"([\d,]+(?:\.\d+)?)\s*" + _UNIT_GROUP,
+    re.IGNORECASE,
+)
+
+
+def _to_float(numeric_str: str, unit: str | None) -> float | None:
+    try:
+        value = float(numeric_str.replace(",", ""))
+    except ValueError:
+        return None
+    return value * _UNIT_MAP.get((unit or "").lower(), 1.0)
 
 
 def parse_dollar_amount(text: str) -> float | None:
     """
     Convert varied dollar-amount strings to a float of dollars.
 
+    A bare number is accepted only when it is the entire input (structured
+    field values). Inside prose the amount must carry a "$" or a unit word,
+    so incidental numbers ("5-year", "2000 units", contract numbers) are
+    ignored rather than mistaken for the award value.
+
     Examples:
-        "$95,000,000"           → 95_000_000.0
-        "$127.4 million"        → 127_400_000.0
-        "$1.2 billion"          → 1_200_000_000.0
-        "maximum $95,000,000"   → 95_000_000.0
-        "not-to-exceed $75M"    → 75_000_000.0
-        "obligated at the time of award: $18,000,000" → 18_000_000.0
+        "95000000"                          -> 95_000_000.0   (bare field)
+        "$95,000,000"                       -> 95_000_000.0
+        "$127.4 million"                    -> 127_400_000.0
+        "$1.2 billion"                      -> 1_200_000_000.0
+        "maximum $95,000,000"               -> 95_000_000.0
+        "not-to-exceed $75M"                -> 75_000_000.0
+        "5-year contract valued at $95,000,000" -> 95_000_000.0  (not 5.0)
+        "Contract W91234-26-C-0001"         -> None
     """
     if not text:
         return None
-    # Strip prefixes like "maximum", "not-to-exceed", "obligated …:"
+
+    bare = _BARE_NUMERIC_RE.match(text.strip())
+    if bare:
+        return _to_float(bare.group(1), None)
+
+    # Strip punctuation that would otherwise glue tokens together ("$95M/yr"),
+    # keeping "$", digits, separators, letters and whitespace.
     cleaned = re.sub(r"[^$\d.,a-zA-Z\s]", " ", text)
-    m = _AMOUNT_RE.search(cleaned)
-    if not m:
-        return None
-    numeric_str = m.group(1).replace(",", "")
-    try:
-        value = float(numeric_str)
-    except ValueError:
-        return None
-    unit = (m.group(2) or "").lower()
-    multiplier = _UNIT_MAP.get(unit, 1.0)
-    # If no unit but value looks like it might already be in millions
-    # (common in some DoD pages), we do NOT auto-multiply — caller must pass full text.
-    return value * multiplier
+
+    for pattern in (_DOLLAR_ANCHORED_RE, _UNIT_ANCHORED_RE):
+        m = pattern.search(cleaned)
+        if m:
+            value = _to_float(m.group(1), m.group(2))
+            if value is not None:
+                return value
+    return None
 
 
 def extract_obligated_amount(text: str) -> float | None:
@@ -122,6 +151,11 @@ _DEFENSE_KEYWORDS = re.compile(
     r"artificial\s+intelligence|AI|machine\s+learning|geospatial|space)\b",
     re.IGNORECASE,
 )
+
+
+def has_defense_keywords(text: str) -> bool:
+    """True if the text mentions a defense / AI / cyber / space category."""
+    return bool(_DEFENSE_KEYWORDS.search(text))
 
 
 def detect_flags(description: str, award_type: str = "") -> dict[str, bool]:

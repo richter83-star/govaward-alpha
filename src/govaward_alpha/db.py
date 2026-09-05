@@ -6,7 +6,7 @@ import json
 import logging
 import sqlite3
 from contextlib import contextmanager
-from datetime import datetime
+from govaward_alpha.timeutil import utcnow
 from typing import Generator
 
 from govaward_alpha.config import get_settings
@@ -15,7 +15,8 @@ from govaward_alpha.models import AlertRecord, Award, Company, SourceRun
 logger = logging.getLogger(__name__)
 
 
-def _conn(db_path: str) -> sqlite3.Connection:
+def connect(db_path: str) -> sqlite3.Connection:
+    """Open a configured SQLite connection (WAL, Row factory, FK enforcement)."""
     conn = sqlite3.connect(db_path, detect_types=sqlite3.PARSE_DECLTYPES)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
@@ -26,7 +27,7 @@ def _conn(db_path: str) -> sqlite3.Connection:
 @contextmanager
 def get_connection() -> Generator[sqlite3.Connection, None, None]:
     settings = get_settings()
-    conn = _conn(settings.db_path)
+    conn = connect(settings.db_path)
     try:
         yield conn
         conn.commit()
@@ -64,6 +65,8 @@ CREATE TABLE IF NOT EXISTS awards (
     is_ceiling_only         INTEGER DEFAULT 0,
     period_start            TEXT,
     period_end              TEXT,
+    materiality_score       INTEGER,
+    alert_level             TEXT,
     created_at              TEXT    NOT NULL,
     updated_at              TEXT    NOT NULL,
     content_hash            TEXT    DEFAULT '',
@@ -121,17 +124,29 @@ CREATE TABLE IF NOT EXISTS source_runs (
 
 def _migrate(conn: sqlite3.Connection) -> None:
     """Apply additive migrations for existing databases."""
-    cols = {row[1] for row in conn.execute("PRAGMA table_info(alerts)")}
-    if "claude_analysis_json" not in cols:
+    alert_cols = {row[1] for row in conn.execute("PRAGMA table_info(alerts)")}
+    if "claude_analysis_json" not in alert_cols:
         conn.execute("ALTER TABLE alerts ADD COLUMN claude_analysis_json TEXT DEFAULT ''")
         conn.commit()
         logger.info("Migration: added claude_analysis_json column to alerts")
+
+    award_cols = {row[1] for row in conn.execute("PRAGMA table_info(awards)")}
+    if "materiality_score" not in award_cols:
+        conn.execute("ALTER TABLE awards ADD COLUMN materiality_score INTEGER")
+        conn.commit()
+        logger.info("Migration: added materiality_score column to awards")
+    if "alert_level" not in award_cols:
+        conn.execute("ALTER TABLE awards ADD COLUMN alert_level TEXT")
+        conn.commit()
+        logger.info("Migration: added alert_level column to awards")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_awards_score ON awards(materiality_score)")
+    conn.commit()
 
 
 def init_db() -> None:
     """Create all tables if they do not exist."""
     settings = get_settings()
-    conn = _conn(settings.db_path)
+    conn = connect(settings.db_path)
     try:
         conn.executescript(DDL)
         conn.commit()
@@ -171,14 +186,28 @@ def _award_to_row(a: Award) -> dict:
         "is_ceiling_only": int(a.is_ceiling_only),
         "period_start": a.period_start.isoformat() if a.period_start else None,
         "period_end": a.period_end.isoformat() if a.period_end else None,
+        "materiality_score": a.materiality_score,
+        "alert_level": a.alert_level,
         "content_hash": a.content_hash,
         "created_at": a.created_at.isoformat(),
         "updated_at": a.updated_at.isoformat(),
     }
 
 
-def upsert_award(conn: sqlite3.Connection, award: Award) -> tuple[int, bool]:
-    """Insert or update an award. Returns (row_id, is_new)."""
+INSERTED = "inserted"
+UPDATED = "updated"
+UNCHANGED = "unchanged"
+
+
+def upsert_award(conn: sqlite3.Connection, award: Award) -> tuple[int, str]:
+    """Insert or update an award.
+
+    Returns ``(row_id, status)`` where status is one of ``INSERTED``,
+    ``UPDATED`` (row existed and the content hash changed), or ``UNCHANGED``
+    (row existed with an identical hash — no write performed). Callers need
+    the three-way distinction so run audits do not report every re-seen award
+    as an update.
+    """
     row = _award_to_row(award)
     cur = conn.execute(
         "SELECT id, content_hash FROM awards WHERE source=? AND source_award_id=?",
@@ -193,22 +222,22 @@ def upsert_award(conn: sqlite3.Connection, award: Award) -> tuple[int, bool]:
                 agency,sub_agency,naics,psc,award_amount,obligated_amount,
                 description,contract_number,award_type,is_idiq,is_modification,
                 is_option_exercise,is_ceiling_only,period_start,period_end,
-                content_hash,created_at,updated_at)
+                materiality_score,alert_level,content_hash,created_at,updated_at)
                VALUES
                (:source,:source_award_id,:source_url,:posted_date,:award_date,
                 :awardee_name_raw,:awardee_name_normalized,:parent_company_name,:ticker,
                 :agency,:sub_agency,:naics,:psc,:award_amount,:obligated_amount,
                 :description,:contract_number,:award_type,:is_idiq,:is_modification,
                 :is_option_exercise,:is_ceiling_only,:period_start,:period_end,
-                :content_hash,:created_at,:updated_at)""",
+                :materiality_score,:alert_level,:content_hash,:created_at,:updated_at)""",
             row,
         )
-        return cur.lastrowid, True
+        return cur.lastrowid, INSERTED
     else:
         if existing["content_hash"] == award.content_hash:
-            return existing["id"], False
+            return existing["id"], UNCHANGED
         row["id"] = existing["id"]
-        row["updated_at"] = datetime.utcnow().isoformat()
+        row["updated_at"] = utcnow().isoformat()
         conn.execute(
             """UPDATE awards SET
                source_url=:source_url, posted_date=:posted_date, award_date=:award_date,
@@ -220,11 +249,76 @@ def upsert_award(conn: sqlite3.Connection, award: Award) -> tuple[int, bool]:
                award_type=:award_type, is_idiq=:is_idiq, is_modification=:is_modification,
                is_option_exercise=:is_option_exercise, is_ceiling_only=:is_ceiling_only,
                period_start=:period_start, period_end=:period_end,
+               materiality_score=COALESCE(:materiality_score, materiality_score),
+               alert_level=COALESCE(:alert_level, alert_level),
                content_hash=:content_hash, updated_at=:updated_at
                WHERE id=:id""",
             row,
         )
-        return existing["id"], False
+        return existing["id"], UPDATED
+
+
+def update_award_score(
+    conn: sqlite3.Connection,
+    award_id: int,
+    score: int,
+    level: str,
+) -> None:
+    """Update calculated score and alert level for an award row."""
+    conn.execute(
+        "UPDATE awards SET materiality_score=?, alert_level=?, updated_at=? WHERE id=?",
+        (score, level, utcnow().isoformat(), award_id),
+    )
+
+
+def list_all_awards(
+    conn: sqlite3.Connection,
+    limit: int = 100,
+    min_score: int | None = None,
+    level: str | None = None,
+    ticker: str | None = None,
+    agency: str | None = None,
+    source: str | None = None,
+    sort: str = "score_desc",
+) -> list[sqlite3.Row]:
+    """Query all scanned awards with joined company data, scored or unscored."""
+    where = ["1=1"]
+    params: list[Any] = []
+    if min_score is not None:
+        where.append("aw.materiality_score >= ?")
+        params.append(min_score)
+    if level:
+        where.append("aw.alert_level = ?")
+        params.append(level.upper())
+    if ticker:
+        where.append("aw.ticker LIKE ?")
+        params.append(f"%{ticker.upper()}%")
+    if agency:
+        where.append("aw.agency LIKE ?")
+        params.append(f"%{agency}%")
+    if source:
+        where.append("aw.source = ?")
+        params.append(source)
+
+    order_by = {
+        "score_desc":  "aw.materiality_score DESC NULLS LAST, aw.award_amount DESC NULLS LAST",
+        "score_asc":   "aw.materiality_score ASC NULLS LAST",
+        "amount_desc": "aw.award_amount DESC NULLS LAST",
+        "amount_asc":  "aw.award_amount ASC NULLS LAST",
+        "posted_desc": "aw.posted_date DESC NULLS LAST, aw.materiality_score DESC NULLS LAST",
+        "created_desc":"aw.created_at DESC",
+    }.get(sort, "aw.materiality_score DESC NULLS LAST, aw.award_amount DESC NULLS LAST")
+
+    sql = f"""
+        SELECT aw.*, co.company_name, co.market_cap, co.trailing_revenue, co.sector
+        FROM awards aw
+        LEFT JOIN companies co ON aw.ticker = co.ticker
+        WHERE {" AND ".join(where)}
+        ORDER BY {order_by}
+        LIMIT ?
+    """
+    params.append(limit)
+    return conn.execute(sql, params).fetchall()
 
 
 def get_award_by_id(conn: sqlite3.Connection, award_id: int) -> sqlite3.Row | None:
@@ -316,13 +410,22 @@ def alert_exists_for_award(conn: sqlite3.Connection, award_id: int) -> bool:
     return row is not None
 
 
+_SENT_COLUMNS = frozenset({"console", "email", "telegram", "discord"})
+
+
 def mark_alert_sent(
     conn: sqlite3.Connection,
     alert_id: int,
     channel: str,
 ) -> None:
-    col = f"sent_{channel}"
-    conn.execute(f"UPDATE alerts SET {col}=1 WHERE id=?", (alert_id,))
+    if channel not in _SENT_COLUMNS:
+        raise ValueError(
+            f"Unknown notification channel {channel!r}; expected one of "
+            + ", ".join(sorted(_SENT_COLUMNS))
+        )
+    # Column name is validated against a fixed allow-list above, never
+    # interpolated from caller input.
+    conn.execute(f"UPDATE alerts SET sent_{channel}=1 WHERE id=?", (alert_id,))
 
 
 def list_alerts(conn: sqlite3.Connection, limit: int = 50) -> list[sqlite3.Row]:
@@ -350,7 +453,7 @@ def get_alert_by_id(conn: sqlite3.Connection, alert_id: int) -> sqlite3.Row | No
 def start_run(conn: sqlite3.Connection, source: str) -> int:
     cur = conn.execute(
         "INSERT INTO source_runs (source,started_at,status) VALUES (?,?,?)",
-        (source, datetime.utcnow().isoformat(), "running"),
+        (source, utcnow().isoformat(), "running"),
     )
     conn.commit()
     return cur.lastrowid
@@ -370,6 +473,6 @@ def finish_run(
            finished_at=?,status=?,records_seen=?,records_inserted=?,
            records_updated=?,error_message=?
            WHERE id=?""",
-        (datetime.utcnow().isoformat(), status, seen, inserted, updated, error, run_id),
+        (utcnow().isoformat(), status, seen, inserted, updated, error, run_id),
     )
     conn.commit()

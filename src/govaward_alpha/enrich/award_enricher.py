@@ -15,6 +15,7 @@ from govaward_alpha import db
 from govaward_alpha.enrich.company_resolver import get_watchlist, resolve
 from govaward_alpha.models import Award, Company
 from govaward_alpha.sources.market_data import fetch_market_data
+from govaward_alpha.timeutil import utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -39,10 +40,6 @@ def enrich_award(award: Award, conn: sqlite3.Connection) -> tuple[Award, Company
         logger.debug("No ticker resolved for '%s'", award.awardee_name_raw)
         return enriched, None
 
-    # Check watchlist — if ticker is on watchlist, always proceed regardless of market cap
-    watchlist = get_watchlist()
-    on_watchlist = ticker.upper() in watchlist
-
     # Fetch or use cached market data
     existing_row = db.get_company(conn, ticker)
     company: Company | None = None
@@ -51,7 +48,7 @@ def enrich_award(award: Award, conn: sqlite3.Connection) -> tuple[Award, Company
         from datetime import datetime, timedelta
         refresh_str = existing_row["last_market_data_refresh"]
         if refresh_str:
-            age = datetime.utcnow() - datetime.fromisoformat(refresh_str)
+            age = utcnow() - datetime.fromisoformat(refresh_str)
             if age < timedelta(hours=6):
                 company = Company(
                     ticker=existing_row["ticker"],

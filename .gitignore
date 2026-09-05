@@ -15,6 +15,9 @@ venv/
 # Caches
 .cache/
 .pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
 .benchmarks/
 .mypy_cache/
 .ruff_cache/
@@ -27,9 +30,6 @@ venv/
 # Logs
 logs/
 *.log
-
-# Stray pip artifact
-=0.28.0
 
 # OS
 .DS_Store

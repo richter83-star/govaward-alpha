@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from pathlib import Path
 import sys
 from typing import Optional
 
@@ -73,6 +74,7 @@ def scan(
     table.add_column("Seen", justify="right")
     table.add_column("Inserted", justify="right")
     table.add_column("Updated", justify="right")
+    table.add_column("Unchanged", justify="right")
     table.add_column("Alerted", justify="right")
     table.add_column("Errors", justify="right")
 
@@ -82,6 +84,7 @@ def scan(
             str(stats.get("seen", 0)),
             str(stats.get("inserted", 0)),
             str(stats.get("updated", 0)),
+            str(stats.get("unchanged", 0)),
             str(stats.get("alerted", 0)),
             str(stats.get("errors", 0)),
         )
@@ -111,12 +114,15 @@ def scan_sam(
 @app.command("scan-defense")
 def scan_defense(
     lookback: Optional[int] = typer.Option(None, "--lookback", "-l"),
+    file: Optional[Path] = typer.Option(None, "--file", "-f", help="Local HTML file to parse directly"),
 ) -> None:
     """Run only the Defense.gov daily contracts parser."""
     _require_db()
+    from functools import partial
     from govaward_alpha.services.scan_service import run_source
     from govaward_alpha.sources import defense_daily
-    stats = run_source("defense_daily", defense_daily.fetch_awards, lookback)
+    fetcher = partial(defense_daily.fetch_awards, file_path=file) if file else defense_daily.fetch_awards
+    stats = run_source("defense_daily", fetcher, lookback)
     console.print(stats)
 
 

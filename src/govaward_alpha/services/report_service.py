@@ -20,6 +20,7 @@ from pathlib import Path
 
 from govaward_alpha import db
 from govaward_alpha.config import get_settings
+from govaward_alpha.timeutil import utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -205,7 +206,7 @@ def build_report(
 ) -> str:
     """Build the daily-report markdown string."""
     settings = get_settings()
-    now = datetime.utcnow()
+    now = utcnow()
     since = now - timedelta(hours=lookback_hours)
 
     out: list[str] = []
@@ -316,7 +317,7 @@ def write_report(
         # Resolve relative to repo root (../../.. from this file)
         out_dir = Path(__file__).resolve().parent.parent.parent.parent / "logs" / "reports"
     out_dir.mkdir(parents=True, exist_ok=True)
-    today = datetime.utcnow().strftime("%Y-%m-%d")
+    today = utcnow().strftime("%Y-%m-%d")
     path = out_dir / f"{today}.md"
     path.write_text(markdown, encoding="utf-8")
     return path
@@ -449,7 +450,7 @@ def email_report(markdown: str, subject_hint: str = "") -> bool:
     from email.mime.text import MIMEText
     from email.mime.multipart import MIMEMultipart
 
-    today = datetime.utcnow().strftime("%Y-%m-%d")
+    today = utcnow().strftime("%Y-%m-%d")
     subject = f"GovAward Alpha — Daily Report {today}"
     if subject_hint:
         subject += f" — {subject_hint}"
@@ -487,7 +488,7 @@ def generate_and_deliver(
 
     # Pull a few headline counts back out for the return value
     with db.get_connection() as conn:
-        since = datetime.utcnow() - timedelta(hours=lookback_hours)
+        since = utcnow() - timedelta(hours=lookback_hours)
         new_alerts = _query_new_alerts(conn, since)
         fresh = _query_fresh_alerts(
             conn, days=fresh_window_days,

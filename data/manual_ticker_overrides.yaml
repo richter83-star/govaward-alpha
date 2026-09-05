@@ -77,3 +77,118 @@ overrides:
   vectrus systems:
     parent_company_name: V2X, Inc.
     ticker: VVX
+  ameresco:
+    parent_company_name: Ameresco, Inc.
+    ticker: AMRC
+  amentum:
+    parent_company_name: Amentum Holdings, Inc.
+    ticker: AMTM
+  amentum services:
+    parent_company_name: Amentum Holdings, Inc.
+    ticker: AMTM
+  perimeter solutions:
+    parent_company_name: Perimeter Solutions, SA
+    ticker: PRM
+  ecs federal:
+    parent_company_name: ASGN Incorporated
+    ticker: ASGN
+  rq aecom:
+    parent_company_name: AECOM
+    ticker: ACM
+  rq aecom 2 jv:
+    parent_company_name: AECOM
+    ticker: ACM
+  huntington ingalls:
+    parent_company_name: Huntington Ingalls Industries, Inc.
+    ticker: HII
+  textron:
+    parent_company_name: Textron Inc.
+    ticker: TXT
+  curtiss wright:
+    parent_company_name: Curtiss-Wright Corporation
+    ticker: CW
+  bwxt:
+    parent_company_name: BWX Technologies, Inc.
+    ticker: BWXT
+  teledyne:
+    parent_company_name: Teledyne Technologies Incorporated
+    ticker: TDY
+  motorola solutions:
+    parent_company_name: Motorola Solutions, Inc.
+    ticker: MSI
+  l3harris:
+    parent_company_name: L3Harris Technologies, Inc.
+    ticker: LHX
+  raytheon:
+    parent_company_name: RTX Corporation
+    ticker: RTX
+  lockheed martin:
+    parent_company_name: Lockheed Martin Corporation
+    ticker: LMT
+  boeing:
+    parent_company_name: The Boeing Company
+    ticker: BA
+  deloitte consulting:
+    parent_company_name: Deloitte Consulting LLP (private)
+    ticker: null
+  linquest:
+    parent_company_name: LinQuest Corporation (private)
+    ticker: null
+  linquest corporation:
+    parent_company_name: LinQuest Corporation (private)
+    ticker: null
+  noblis:
+    parent_company_name: Noblis, Inc. (private)
+    ticker: null
+  seabee construction:
+    parent_company_name: Seabee Construction, Inc. (private)
+    ticker: null
+  black canyon consulting:
+    parent_company_name: Black Canyon Consulting LLC (private)
+    ticker: null
+  management & training:
+    parent_company_name: Management & Training Corporation (private)
+    ticker: null
+  management training:
+    parent_company_name: Management & Training Corporation (private)
+    ticker: null
+  workwear outfitters:
+    parent_company_name: Workwear Outfitters, LLC (private)
+    ticker: null
+  iron vine security:
+    parent_company_name: Iron Vine Security LLC (private)
+    ticker: null
+  ls technologies:
+    parent_company_name: LS Technologies LLC (private)
+    ticker: null
+  american type culture collection:
+    parent_company_name: American Type Culture Collection (nonprofit)
+    ticker: null
+  kokosing construction:
+    parent_company_name: Kokosing Construction Company, Inc. (private)
+    ticker: null
+  bechtel:
+    parent_company_name: Bechtel Corporation (private)
+    ticker: null
+  northrop grumman:
+    parent_company_name: Northrop Grumman Corporation
+    ticker: NOC
+  northrop grumman systems:
+    parent_company_name: Northrop Grumman Corporation
+    ticker: NOC
+  kbr:
+    parent_company_name: KBR, Inc.
+    ticker: KBR
+  kbr wyle services:
+    parent_company_name: KBR, Inc.
+    ticker: KBR
+  clark construction:
+    parent_company_name: Clark Construction Group, LLC (private)
+    ticker: null
+  caddell construction:
+    parent_company_name: Caddell Construction Co. (private)
+    ticker: null
+  consolidated nuclear security:
+    parent_company_name: Consolidated Nuclear Security, LLC (private JV)
+    ticker: null
+

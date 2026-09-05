@@ -489,6 +489,7 @@
     /* ── Misc ────────────────────────────────────────────── */
     .chevron { display:inline-block; transition:transform .2s; color:var(--text-mute); font-size:10px; margin-left:3px; }
     .expanded .chevron { transform:rotate(90deg); }
+    .unresolved-badge { display:inline-flex; align-items:center; padding:1px 6px; border-radius:3px; font-size:10px; font-family:var(--mono); font-weight:600; background:rgba(122,128,153,.15); color:var(--text-dim); border:1px solid var(--border-lt); }
     a { color:var(--amber); text-decoration:none; }
     a:hover { text-decoration:underline; }
   </style>
@@ -515,6 +516,12 @@
     <div class="nav-label">Navigation</div>
     <div class="nav-item active" data-page="alerts" onclick="navigate('alerts',this)">
       <span class="nav-icon">◈</span> Alert Feed
+    </div>
+    <div class="nav-item" data-page="contracts" onclick="navigate('contracts',this)">
+      <span class="nav-icon">▤</span> All Contracts
+    </div>
+    <div class="nav-item" data-page="unresolved" onclick="navigate('unresolved',this)">
+      <span class="nav-icon">⚑</span> Unresolved Review
     </div>
     <div class="nav-item" data-page="companies" onclick="navigate('companies',this)">
       <span class="nav-icon">◉</span> Companies
@@ -641,6 +648,61 @@
 
     </section>
 
+    <!-- ── All Contracts (Pipeline) page ───────────────── -->
+    <section class="page" id="page-contracts">
+      <div class="section-header">
+        <div>
+          <span class="section-title">All Scanned Contracts (Pipeline)</span>
+          <div style="font-size:11px;color:var(--text-dim);margin-top:2px">
+            Complete database of government contracts ingested across USAspending, Defense.gov, and SAM.gov with materiality scores.
+          </div>
+        </div>
+        <span class="section-count" id="contracts-count">—</span>
+      </div>
+      <div class="filter-bar" style="padding:9px 13px">
+        <div class="filter-row">
+          <span class="filter-label">Search</span>
+          <input class="filter-input" type="text" id="f-contract-search" placeholder="Search awardee, ticker, agency, description…" style="flex:1;min-width:220px" oninput="filterContractsTable()">
+          <select class="filter-input" id="f-contract-source" onchange="loadAllContracts()">
+            <option value="">All sources</option>
+            <option value="usaspending">USAspending</option>
+            <option value="defense_daily">Defense.gov</option>
+            <option value="sam_gov">SAM.gov</option>
+          </select>
+          <select class="filter-input" id="f-contract-status" onchange="filterContractsTable()">
+            <option value="all">All awards</option>
+            <option value="resolved">Resolved ticker only</option>
+            <option value="unresolved">Unresolved only</option>
+            <option value="scored">Scored only (&gt;0)</option>
+          </select>
+          <button class="btn-reset" onclick="resetContractFilters()">Reset</button>
+        </div>
+      </div>
+      <div class="card">
+        <div id="contracts-container">
+          <div class="loading"><div class="spinner"></div> Loading contracts pipeline…</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Unresolved Review page ──────────────────────── -->
+    <section class="page" id="page-unresolved">
+      <div class="section-header">
+        <div>
+          <span class="section-title">High-Value Unresolved Awardees</span>
+          <div style="font-size:11px;color:var(--text-dim);margin-top:2px">
+            Contract recipients with no public ticker mapping. Map them in <code>data/manual_ticker_overrides.yaml</code> to unlock catalyst scoring.
+          </div>
+        </div>
+        <span class="section-count" id="unresolved-count">—</span>
+      </div>
+      <div class="card">
+        <div id="unresolved-container">
+          <div class="loading"><div class="spinner"></div> Loading unresolved entities…</div>
+        </div>
+      </div>
+    </section>
+
     <!-- ── Companies page ─────────────────────────────── -->
     <section class="page" id="page-companies">
       <div class="section-header">
@@ -731,15 +793,22 @@ function esc(s) {
 
 // ── Navigation ────────────────────────────────────────────
 
+function switchPage(pageId) {
+  const el = document.querySelector(`.nav-item[data-page="${pageId}"]`);
+  if (el) navigate(pageId, el);
+}
+
 function navigate(pageId, el) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   el.classList.add('active');
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-' + pageId).classList.add('active');
 
-  if (pageId === 'analytics')  loadCharts();
-  if (pageId === 'sources')    loadSources();
-  if (pageId === 'companies')  loadCompanies();
+  if (pageId === 'contracts')   loadAllContracts();
+  if (pageId === 'unresolved')  loadUnresolved();
+  if (pageId === 'analytics')   loadCharts();
+  if (pageId === 'sources')     loadSources();
+  if (pageId === 'companies')   loadCompanies();
 }
 
 // ── Filter state ──────────────────────────────────────────
@@ -1119,8 +1188,9 @@ function renderAlerts(alerts) {
     container.innerHTML = `<div class="empty">
       No alerts match the current filters.<br>
       <span style="color:var(--text-dim);font-size:11px">
-        Try widening a range, removing a search term, or
-        <a href="javascript:void(0)" onclick="resetFilters()" style="color:var(--amber)">reset to defaults</a>.
+        Try widening a range, removing a search term,
+        <a href="javascript:void(0)" onclick="resetFilters()" style="color:var(--amber)">reset to defaults</a>,
+        or view all scanned contracts in the <a href="javascript:void(0)" onclick="switchPage('contracts')" style="color:var(--amber)">All Contracts pipeline</a>.
       </span>
     </div>`;
     return;
@@ -1467,6 +1537,160 @@ async function loadSources() {
   container.innerHTML = `
     <table class="source-table">
       <thead><tr><th>Source</th><th>Status</th><th>Started</th><th>Duration</th><th>Seen</th><th>Inserted</th><th>Updated</th><th>Error</th></tr></thead>
+      <tbody>${trs}</tbody>
+    </table>`;
+}
+
+// ── All Contracts Pipeline ────────────────────────────────
+
+let _allContracts = [];
+
+async function loadAllContracts() {
+  const container = document.getElementById('contracts-container');
+  container.innerHTML = '<div class="loading"><div class="spinner"></div> Loading contracts pipeline…</div>';
+
+  const srcVal = document.getElementById('f-contract-source').value;
+  let url = '/api/awards?limit=250';
+  if (srcVal) url += '&source=' + encodeURIComponent(srcVal);
+
+  _allContracts = await fetch(url).then(r=>r.json()).catch(()=>[]);
+  document.getElementById('contracts-count').textContent = _allContracts.length + ' contracts';
+  renderContractsTable(_allContracts);
+}
+
+function filterContractsTable() {
+  const q = (document.getElementById('f-contract-search').value || '').trim().toLowerCase();
+  const status = document.getElementById('f-contract-status').value;
+
+  let filtered = _allContracts.filter(a => {
+    if (status === 'resolved' && !a.ticker) return false;
+    if (status === 'unresolved' && a.ticker) return false;
+    if (status === 'scored' && (!a.materiality_score || a.materiality_score <= 0)) return false;
+
+    if (!q) return true;
+    const hay = [
+      a.awardee_name_raw,
+      a.ticker,
+      a.agency,
+      a.source,
+      a.description,
+      a.contract_award_unique_key,
+    ].filter(Boolean).join(' ').toLowerCase();
+    return hay.includes(q);
+  });
+
+  renderContractsTable(filtered);
+}
+
+function resetContractFilters() {
+  document.getElementById('f-contract-search').value = '';
+  document.getElementById('f-contract-source').value = '';
+  document.getElementById('f-contract-status').value = 'all';
+  loadAllContracts();
+}
+
+function renderContractsTable(contracts) {
+  const container = document.getElementById('contracts-container');
+  document.getElementById('contracts-count').textContent = contracts.length + ' contracts';
+
+  if (!contracts.length) {
+    container.innerHTML = '<div class="empty">No contracts match the current search.</div>';
+    return;
+  }
+
+  const trs = contracts.map(a => {
+    const tickerHtml = a.ticker
+      ? `<span class="ticker-cell">${esc(a.ticker)}</span>`
+      : `<span class="unresolved-badge">UNRESOLVED</span>`;
+
+    const scoreHtml = a.materiality_score != null
+      ? `<div class="score-bar-wrap">
+          <div class="score-bar-bg"><div class="score-bar-fill" style="width:${a.materiality_score}%"></div></div>
+          <span class="score-num">${a.materiality_score}</span>
+        </div>`
+      : '<span style="color:var(--text-mute);font-family:var(--mono)">—</span>';
+
+    const levelHtml = a.alert_level
+      ? `<span class="level-badge level-${esc(a.alert_level)}">${esc(a.alert_level)}</span>`
+      : '<span style="color:var(--text-mute);font-family:var(--mono);font-size:10px">—</span>';
+
+    const dateVal = a.posted_date || a.award_date;
+    const freshTag = freshBadge(dateVal);
+
+    return `<tr>
+      <td style="width:70px">${levelHtml}</td>
+      <td style="width:85px">${scoreHtml}</td>
+      <td style="width:110px">${tickerHtml}${freshTag}</td>
+      <td>
+        <div class="awardee-cell" title="${esc(a.awardee_name_raw)}">${esc(a.awardee_name_raw)}</div>
+        ${a.description ? `<div style="font-size:10.5px;color:var(--text-dim);max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(a.description)}">${esc(a.description)}</div>` : ''}
+      </td>
+      <td class="amount-cell">${fmt(a.award_amount)}</td>
+      <td class="agency-cell" title="${esc(a.agency)}">${esc(a.agency)}</td>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">${esc(a.source)}</td>
+      <td class="date-cell" title="Posted: ${esc(a.posted_date||'—')}\nAward date: ${esc(a.award_date||'—')}">${fmtDate(dateVal)}</td>
+    </tr>`;
+  }).join('');
+
+  container.innerHTML = `
+    <table class="alerts-table">
+      <thead><tr>
+        <th>Level</th>
+        <th>Score</th>
+        <th>Ticker</th>
+        <th>Awardee & Description</th>
+        <th>Award Amount</th>
+        <th>Agency</th>
+        <th>Source</th>
+        <th>Date</th>
+      </tr></thead>
+      <tbody>${trs}</tbody>
+    </table>`;
+}
+
+// ── Unresolved Review ─────────────────────────────────────
+
+async function loadUnresolved() {
+  const container = document.getElementById('unresolved-container');
+  container.innerHTML = '<div class="loading"><div class="spinner"></div> Loading unresolved entities…</div>';
+
+  const rows = await fetch('/api/unresolved?min_amount=5000000&limit=100').then(r=>r.json()).catch(()=>[]);
+  document.getElementById('unresolved-count').textContent = rows.length + ' entities';
+
+  if (!rows.length) {
+    container.innerHTML = '<div class="empty">No high-value unresolved awardees found! All entities &ge; $5M are mapped or reviewed.</div>';
+    return;
+  }
+
+  const trs = rows.map((r, i) => {
+    return `<tr>
+      <td style="font-family:var(--mono);color:var(--text-mute);width:30px">${i+1}</td>
+      <td style="font-weight:600;color:var(--text)">
+        <div title="${esc(r.awardee_name)}">${esc(r.awardee_name)}</div>
+      </td>
+      <td class="amount-cell" style="color:var(--amber)">${fmt(r.total_value)}</td>
+      <td style="font-family:var(--mono);color:var(--text-dim);text-align:center">${r.contract_count}</td>
+      <td class="agency-cell" title="${esc(r.sample_agency)}">${esc(r.sample_agency)}</td>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">${esc(r.sample_source)}</td>
+      <td>
+        <span style="font-size:11px;color:var(--text-dim)">
+          Add to <code>data/manual_ticker_overrides.yaml</code>
+        </span>
+      </td>
+    </tr>`;
+  }).join('');
+
+  container.innerHTML = `
+    <table class="co-table">
+      <thead><tr>
+        <th>#</th>
+        <th>Unmapped Awardee Name</th>
+        <th>Total Cumulative Value</th>
+        <th style="text-align:center">Contracts</th>
+        <th>Sample Agency</th>
+        <th>Source</th>
+        <th>Action</th>
+      </tr></thead>
       <tbody>${trs}</tbody>
     </table>`;
 }

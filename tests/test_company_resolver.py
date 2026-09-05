@@ -64,6 +64,47 @@ class TestResolveSecTickers:
         assert result["resolution_method"] == "unresolved"
 
 
+class TestFuzzyMatchGuards:
+    """Regression: a shared generic word must not be enough to claim a ticker.
+
+    normalize_company_name() strips "global"/"ltd" as legal-suffix noise, so
+    SEC's "GLOBAL TECHNOLOGIES LTD" collapses to the bare key "technologies".
+    WRatio's partial-ratio term then scored "ls technologies" against it at 95
+    -- above the 92 threshold -- and a live scan mapped the private FAA
+    contractor LS TECHNOLOGIES LLC onto the penny stock GTLL, firing a RED
+    alert claiming the award was 4,690% of market cap.
+    """
+
+    GENERIC_MAP = {
+        "technologies":    {"ticker": "GTLL", "company_name": "GLOBAL TECHNOLOGIES LTD", "cik": "1"},
+        "lockheed martin": {"ticker": "LMT", "company_name": "Lockheed Martin Corp", "cik": "2"},
+        "kratos defense security": {"ticker": "KTOS", "company_name": "Kratos Defense", "cik": "3"},
+    }
+
+    @patch("govaward_alpha.enrich.company_resolver.get_ticker_map", return_value=GENERIC_MAP)
+    @patch("govaward_alpha.enrich.company_resolver.get_overrides", return_value={})
+    @patch("govaward_alpha.enrich.company_resolver._guess_ticker_yfinance", return_value=None)
+    def test_shared_generic_word_does_not_resolve(self, mock_yf, mock_overrides, mock_map):
+        result = resolve("LS TECHNOLOGIES LLC")
+        assert result["ticker"] is None
+        assert result["resolution_method"] == "unresolved"
+
+    @patch("govaward_alpha.enrich.company_resolver.get_ticker_map", return_value=GENERIC_MAP)
+    @patch("govaward_alpha.enrich.company_resolver.get_overrides", return_value={})
+    @patch("govaward_alpha.enrich.company_resolver._guess_ticker_yfinance", return_value=None)
+    def test_matching_head_token_still_resolves(self, mock_yf, mock_overrides, mock_map):
+        """The guard must not block genuine near-matches."""
+        result = resolve("Lockheed Martin Corporation")
+        assert result["ticker"] == "LMT"
+
+    @patch("govaward_alpha.enrich.company_resolver.get_ticker_map", return_value=GENERIC_MAP)
+    @patch("govaward_alpha.enrich.company_resolver.get_overrides", return_value={})
+    @patch("govaward_alpha.enrich.company_resolver._guess_ticker_yfinance", return_value=None)
+    def test_suffix_variation_still_resolves(self, mock_yf, mock_overrides, mock_map):
+        result = resolve("Kratos Defense & Security Solutions, Inc.")
+        assert result["ticker"] == "KTOS"
+
+
 class TestNormalizeForResolution:
     """Confirm normalization used in resolution keys."""
 

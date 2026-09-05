@@ -7,11 +7,11 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import HTMLResponse
 
 from govaward_alpha.config import get_settings
-from govaward_alpha.db import _conn
+from govaward_alpha.db import connect
 
 app = FastAPI(title="GovAward Alpha Dashboard", docs_url=None, redoc_url=None)
 
@@ -20,7 +20,7 @@ _HTML = (Path(__file__).parent / "index.html").read_text(encoding="utf-8")
 
 def _db() -> sqlite3.Connection:
     settings = get_settings()
-    return _conn(settings.db_path)
+    return connect(settings.db_path)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -51,16 +51,39 @@ def stats() -> dict[str, Any]:
             "SELECT COUNT(*) FROM alerts WHERE claude_analysis_json != '' AND claude_analysis_json IS NOT NULL"
         ).fetchone()[0]
 
-        avg_score = conn.execute("SELECT AVG(materiality_score) FROM alerts").fetchone()[0] or 0
+        award_levels_raw = conn.execute(
+            "SELECT COALESCE(alert_level, 'WATCH'), COUNT(*) FROM awards GROUP BY alert_level"
+        ).fetchall()
+        award_levels = {r[0]: r[1] for r in award_levels_raw}
+
+        unique_award_tickers = conn.execute(
+            "SELECT COUNT(DISTINCT ticker) FROM awards WHERE ticker IS NOT NULL AND ticker != ''"
+        ).fetchone()[0]
+
+        avg_score = conn.execute(
+            "SELECT AVG(materiality_score) FROM alerts"
+        ).fetchone()[0] or 0
+
+        avg_award_score = conn.execute(
+            "SELECT AVG(materiality_score) FROM awards WHERE materiality_score IS NOT NULL"
+        ).fetchone()[0] or 0
 
         return {
             "total_alerts": total_alerts,
             "by_level": {"RED": red, "ORANGE": orange, "YELLOW": yellow, "WATCH": watch},
+            "by_award_level": {
+                "RED": award_levels.get("RED", 0),
+                "ORANGE": award_levels.get("ORANGE", 0),
+                "YELLOW": award_levels.get("YELLOW", 0),
+                "WATCH": award_levels.get("WATCH", 0),
+            },
             "total_awards_scanned": total_awards,
             "total_contract_value": total_value,
             "unique_tickers": unique_tickers,
+            "unique_award_tickers": unique_award_tickers,
             "claude_enriched": claude_enriched,
             "avg_score": round(avg_score, 1),
+            "avg_award_score": round(avg_award_score, 1),
         }
     finally:
         conn.close()
@@ -121,7 +144,7 @@ def _parse_alert_row(r: sqlite3.Row) -> dict[str, Any]:
 
 @app.get("/api/alerts")
 def list_alerts(
-    limit: int = 200,
+    limit: int = Query(200, ge=1, le=2000),
     level: str = "",          # comma-separated RED,ORANGE,...
     ticker: str = "",         # partial match
     min_score: int = 0,
@@ -299,8 +322,65 @@ def list_companies() -> list[dict[str, Any]]:
         conn.close()
 
 
+@app.get("/api/awards")
+def list_awards(
+    limit: int = Query(100, ge=1, le=500),
+    min_score: int | None = Query(None, ge=0, le=100),
+    level: str | None = Query(None),
+    ticker: str | None = Query(None),
+    agency: str | None = Query(None),
+    source: str | None = Query(None),
+    sort: str = Query("score_desc"),
+) -> list[dict[str, Any]]:
+    """Query all scanned awards with joined company data, scored or unscored."""
+    from govaward_alpha.db import list_all_awards
+    conn = _db()
+    try:
+        rows = list_all_awards(
+            conn,
+            limit=limit,
+            min_score=min_score,
+            level=level,
+            ticker=ticker,
+            agency=agency,
+            source=source,
+            sort=sort,
+        )
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+@app.get("/api/unresolved")
+def list_unresolved(
+    min_amount: float = Query(5_000_000.0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
+) -> list[dict[str, Any]]:
+    """List large awards above threshold that have no resolved ticker, aggregated by awardee."""
+    conn = _db()
+    try:
+        rows = conn.execute(
+            """SELECT
+                   awardee_name_raw AS awardee_name,
+                   SUM(COALESCE(award_amount, 0)) AS total_value,
+                   COUNT(*) AS contract_count,
+                   MAX(agency) AS sample_agency,
+                   MAX(source) AS sample_source
+               FROM awards
+               WHERE (ticker IS NULL OR ticker = '' OR ticker = 'UNRESOLVED')
+               GROUP BY awardee_name_raw
+               HAVING total_value >= ?
+               ORDER BY total_value DESC
+               LIMIT ?""",
+            (min_amount, limit),
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
 @app.get("/api/source-runs")
-def source_runs(limit: int = 60) -> list[dict[str, Any]]:
+def source_runs(limit: int = Query(60, ge=1, le=1000)) -> list[dict[str, Any]]:
     conn = _db()
     try:
         rows = conn.execute(
@@ -314,17 +394,22 @@ def source_runs(limit: int = 60) -> list[dict[str, Any]]:
 
 @app.get("/api/charts/scores")
 def chart_scores() -> dict[str, Any]:
+    """Score distribution across all scored awards and alerts."""
     conn = _db()
     try:
         rows = conn.execute(
-            "SELECT materiality_score FROM alerts ORDER BY created_at DESC LIMIT 500"
+            """SELECT COALESCE(aw.materiality_score, al.materiality_score)
+               FROM awards aw
+               LEFT JOIN alerts al ON al.award_id = aw.id
+               WHERE aw.materiality_score IS NOT NULL OR al.materiality_score IS NOT NULL
+               ORDER BY aw.created_at DESC LIMIT 500"""
         ).fetchall()
-        scores = [r[0] for r in rows]
+        scores = [r[0] for r in rows if r[0] is not None]
 
         buckets = [0] * 10
         labels = [f"{i*10}–{i*10+9}" for i in range(10)]
         for s in scores:
-            buckets[min(s // 10, 9)] += 1
+            buckets[min(int(s) // 10, 9)] += 1
 
         return {"labels": labels, "counts": buckets}
     finally:
@@ -333,13 +418,14 @@ def chart_scores() -> dict[str, Any]:
 
 @app.get("/api/charts/ticker-value")
 def chart_ticker_value() -> dict[str, Any]:
+    """Top tickers by total award value."""
     conn = _db()
     try:
         rows = conn.execute(
-            """SELECT al.ticker, SUM(aw.award_amount) as total
-               FROM alerts al JOIN awards aw ON al.award_id = aw.id
-               WHERE al.ticker != 'UNRESOLVED' AND aw.award_amount IS NOT NULL
-               GROUP BY al.ticker
+            """SELECT ticker, SUM(award_amount) as total
+               FROM awards
+               WHERE ticker IS NOT NULL AND ticker != '' AND award_amount IS NOT NULL
+               GROUP BY ticker
                ORDER BY total DESC LIMIT 15"""
         ).fetchall()
         return {

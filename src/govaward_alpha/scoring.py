@@ -6,6 +6,7 @@ import logging
 from typing import Any
 
 from govaward_alpha.models import Award, Company, ScoreResult
+from govaward_alpha.normalize import has_defense_keywords
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +14,6 @@ LEVEL_RED = "RED"
 LEVEL_ORANGE = "ORANGE"
 LEVEL_YELLOW = "YELLOW"
 LEVEL_WATCH = "WATCH"
-LEVEL_BELOW = "BELOW_THRESHOLD"
 
 
 def score_award(award: Award, company: Company | None) -> ScoreResult:
@@ -128,9 +128,8 @@ def score_award(award: Award, company: Company | None) -> ScoreResult:
         breakdown["bonus_low_volume"] = 0
 
     # Defense/AI/cyber keywords
-    from govaward_alpha.normalize import _DEFENSE_KEYWORDS
     desc_text = f"{award.description} {award.agency} {award.sub_agency} {award.naics} {award.psc}"
-    if _DEFENSE_KEYWORDS.search(desc_text):
+    if has_defense_keywords(desc_text):
         score += 5
         breakdown["bonus_defense_keywords"] = 5
         reasons.append("Defense, AI, cyber, or space contract category detected.")

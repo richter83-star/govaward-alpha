@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +16,7 @@ import httpx
 
 from govaward_alpha.config import get_settings
 from govaward_alpha.normalize import normalize_company_name
+from govaward_alpha.timeutil import utcfromtimestamp, utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -23,11 +24,20 @@ _SEC_TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
 _CACHE_FILE = "sec_tickers.json"
 _CACHE_TTL_HOURS = 24
 
-# SEC headers — include a contact as requested by SEC robots.txt best practice
-_HEADERS = {
-    "User-Agent": "GovAwardAlpha/0.1 research@example.com",
-    "Accept-Encoding": "gzip",
-}
+_UA_PRODUCT = "GovAwardAlpha/0.1"
+
+
+def _headers() -> dict[str, str]:
+    """SEC fair-access headers.
+
+    EDGAR asks automated clients to identify themselves with a contact
+    address. We send whatever the operator configured via SEC_CONTACT_EMAIL
+    and fall back to the bare product token rather than shipping a fake
+    address, which is what SEC actually blocks on.
+    """
+    contact = get_settings().sec_contact_email.strip()
+    ua = f"{_UA_PRODUCT} {contact}" if contact else _UA_PRODUCT
+    return {"User-Agent": ua, "Accept-Encoding": "gzip"}
 
 
 def _cache_path() -> Path:
@@ -38,14 +48,14 @@ def _is_stale() -> bool:
     p = _cache_path()
     if not p.exists():
         return True
-    age = datetime.utcnow() - datetime.utcfromtimestamp(p.stat().st_mtime)
+    age = utcnow() - utcfromtimestamp(p.stat().st_mtime)
     return age > timedelta(hours=_CACHE_TTL_HOURS)
 
 
 def _download_tickers() -> dict[str, Any]:
     logger.info("Downloading SEC company tickers from %s", _SEC_TICKERS_URL)
     with httpx.Client() as client:
-        resp = client.get(_SEC_TICKERS_URL, headers=_HEADERS, timeout=30)
+        resp = client.get(_SEC_TICKERS_URL, headers=_headers(), timeout=30)
         resp.raise_for_status()
         return resp.json()
 
@@ -97,8 +107,3 @@ def get_ticker_map(force_refresh: bool = False) -> dict[str, dict]:
     if _ticker_map is None or force_refresh:
         _ticker_map = load_sec_tickers(force_refresh)
     return _ticker_map
-
-
-def lookup_ticker(normalized_name: str) -> dict | None:
-    """Exact lookup in the SEC ticker map."""
-    return get_ticker_map().get(normalized_name)

@@ -27,7 +27,7 @@ def run_source(
     Returns stats dict with seen/inserted/updated counts.
     """
     settings = get_settings()
-    stats = {"seen": 0, "inserted": 0, "updated": 0, "alerted": 0, "errors": 0}
+    stats = {"seen": 0, "inserted": 0, "updated": 0, "unchanged": 0, "alerted": 0, "errors": 0}
 
     with db.get_connection() as conn:
         run_id = db.start_run(conn, source_name)
@@ -54,24 +54,35 @@ def run_source(
     with db.get_connection() as conn:
         for award in awards:
             try:
-                award_id, is_new = db.upsert_award(conn, award)
-                if is_new:
+                award_id, status = db.upsert_award(conn, award)
+                if status == db.INSERTED:
                     stats["inserted"] += 1
-                else:
+                elif status == db.UPDATED:
                     stats["updated"] += 1
+                else:
+                    stats["unchanged"] += 1
+                is_new = status == db.INSERTED
 
                 # Enrich with company/ticker/market data
                 enriched_award, company = enrich_award(award, conn)
-                # Persist enriched fields back
-                if enriched_award.ticker:
-                    conn.execute(
-                        "UPDATE awards SET ticker=?, parent_company_name=?, awardee_name_normalized=? WHERE id=?",
-                        (enriched_award.ticker, enriched_award.parent_company_name,
-                         enriched_award.awardee_name_normalized, award_id),
-                    )
-
                 # Score
                 result = score_award(enriched_award, company)
+                enriched_award.materiality_score = result.score
+                enriched_award.alert_level = result.level
+
+                # Persist enriched fields and score back to awards row
+                conn.execute(
+                    "UPDATE awards SET ticker=?, parent_company_name=?, awardee_name_normalized=?, "
+                    "materiality_score=?, alert_level=? WHERE id=?",
+                    (
+                        enriched_award.ticker,
+                        enriched_award.parent_company_name,
+                        enriched_award.awardee_name_normalized,
+                        result.score,
+                        result.level,
+                        award_id,
+                    ),
+                )
 
                 # Alert decision
                 fire, reason = should_alert(
@@ -103,9 +114,9 @@ def run_source(
         )
 
     logger.info(
-        "%s done — seen=%d inserted=%d updated=%d alerted=%d errors=%d",
+        "%s done — seen=%d inserted=%d updated=%d unchanged=%d alerted=%d errors=%d",
         source_name, stats["seen"], stats["inserted"], stats["updated"],
-        stats["alerted"], stats["errors"],
+        stats["unchanged"], stats["alerted"], stats["errors"],
     )
     return stats
 
