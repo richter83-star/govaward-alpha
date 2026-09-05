@@ -226,3 +226,69 @@ class TestUnresolvedEndpoint:
         assert apex["total_value"] == 25_000_000.0
         assert apex["contract_count"] == 1
 
+
+class TestNewEndpoints:
+    def test_chart_agencies(self, seeded):
+        resp = seeded.get("/api/charts/agencies")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "agencies" in data and "totals" in data and "counts" in data
+        assert len(data["agencies"]) >= 1
+        assert "Department of Defense" in data["agencies"]
+
+    def test_export_csv(self, seeded):
+        resp = seeded.get("/api/export/csv")
+        assert resp.status_code == 200
+        assert "text/csv" in resp.headers["content-type"]
+        text = resp.text
+        assert "ID,Source,Source Award ID" in text
+        assert "KTOS" in text
+        assert "LMT" in text
+
+    def test_add_override_endpoint(self, seeded):
+        # Backup manual overrides file to avoid dirtying git state
+        from pathlib import Path
+        override_file = Path("data/manual_ticker_overrides.yaml")
+        backup = override_file.read_text(encoding="utf-8") if override_file.exists() else None
+        try:
+            # Insert unmapped award
+            with db.get_connection() as conn:
+                db.upsert_award(
+                    conn,
+                    Award(
+                        source="usaspending",
+                        source_award_id="TEST-OVERRIDE-AWD",
+                        awardee_name_raw="Orbital Flight Systems Inc",
+                        agency="Space Force",
+                        award_amount=15_000_000.0,
+                        ticker=None,
+                        content_hash="h-override-test",
+                    ),
+                )
+
+            resp = seeded.post(
+                "/api/overrides",
+                json={"raw_name": "Orbital Flight Systems Inc", "ticker": "KTOS"},
+            )
+            assert resp.status_code == 200
+            body = resp.json()
+            assert body["status"] == "ok"
+            assert body["ticker"] == "KTOS"
+            assert body["updated_awards"] >= 1
+
+            # Verify database updated
+            awards_resp = seeded.get("/api/awards", params={"ticker": "KTOS"})
+            tickers = [a["ticker"] for a in awards_resp.json()]
+            assert "KTOS" in tickers
+        finally:
+            if backup is not None:
+                override_file.write_text(backup, encoding="utf-8")
+
+    def test_scan_status(self, seeded):
+        resp = seeded.get("/api/scan/status")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert "running" in body
+        assert "last_status" in body
+
+

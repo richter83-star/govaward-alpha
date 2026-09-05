@@ -25,7 +25,8 @@ def _db() -> sqlite3.Connection:
 
 @app.get("/", response_class=HTMLResponse)
 def root() -> HTMLResponse:
-    return HTMLResponse(_HTML)
+    path = Path(__file__).parent / "index.html"
+    return HTMLResponse(path.read_text(encoding="utf-8"))
 
 
 @app.get("/api/stats")
@@ -434,3 +435,203 @@ def chart_ticker_value() -> dict[str, Any]:
         }
     finally:
         conn.close()
+
+
+@app.get("/api/charts/agencies")
+def chart_agencies() -> dict[str, Any]:
+    """Top awarding agencies by total contract value."""
+    conn = _db()
+    try:
+        rows = conn.execute(
+            """SELECT agency, SUM(award_amount) as total, COUNT(*) as count
+               FROM awards
+               WHERE agency IS NOT NULL AND agency != '' AND award_amount IS NOT NULL
+               GROUP BY agency
+               ORDER BY total DESC LIMIT 10"""
+        ).fetchall()
+        return {
+            "agencies": [r[0] for r in rows],
+            "totals":   [r[1] for r in rows],
+            "counts":   [r[2] for r in rows],
+        }
+    finally:
+        conn.close()
+
+
+@app.get("/api/export/csv")
+def export_csv(
+    source: str | None = Query(None),
+    min_score: int | None = Query(None, ge=0, le=100),
+    level: str | None = Query(None),
+    ticker: str | None = Query(None),
+) -> Response:
+    """Export awards catalog matching active filters as a CSV spreadsheet."""
+    import csv
+    import io
+    from fastapi.responses import Response
+    from govaward_alpha.db import list_all_awards
+
+    conn = _db()
+    try:
+        rows = list_all_awards(
+            conn,
+            limit=5000,
+            source=source,
+            min_score=min_score,
+            level=level,
+            ticker=ticker,
+            sort="amount_desc",
+        )
+        out = io.StringIO()
+        writer = csv.writer(out)
+        writer.writerow([
+            "ID", "Source", "Source Award ID", "Awardee", "Ticker", "Parent Company",
+            "Award Amount", "Obligated Amount", "Agency", "Score", "Level",
+            "Posted Date", "Award Date", "Description"
+        ])
+        for r in rows:
+            writer.writerow([
+                r["id"], r["source"], r["source_award_id"], r["awardee_name_raw"],
+                r["ticker"] or "UNRESOLVED", r["parent_company_name"] or "",
+                r["award_amount"], r["obligated_amount"], r["agency"],
+                r["materiality_score"], r["alert_level"],
+                r["posted_date"], r["award_date"], (r["description"] or "").replace("\n", " "),
+            ])
+        csv_bytes = out.getvalue().encode("utf-8")
+        return Response(
+            content=csv_bytes,
+            media_type="text/csv",
+            headers={"Content-Disposition": "attachment; filename=govaward_pipeline_export.csv"},
+        )
+    finally:
+        conn.close()
+
+
+from pydantic import BaseModel
+
+
+class OverrideRequest(BaseModel):
+    raw_name: str
+    ticker: str | None = None
+    parent_name: str | None = None
+
+
+@app.post("/api/overrides")
+def add_override_endpoint(req: OverrideRequest) -> dict[str, Any]:
+    """Add or update an awardee mapping and immediately re-score matching awards."""
+    import yaml
+    from govaward_alpha.db import update_award_score
+    from govaward_alpha.enrich.award_enricher import enrich_award
+    from govaward_alpha.enrich.company_resolver import get_overrides
+    from govaward_alpha.models import Award
+    from govaward_alpha.normalize import normalize_company_name
+    from govaward_alpha.scoring import score_award
+
+    clean_raw = req.raw_name.strip()
+    if not clean_raw:
+        raise HTTPException(status_code=400, detail="Awardee name cannot be empty")
+
+    clean_ticker = req.ticker.strip().upper() if req.ticker and req.ticker.strip() else None
+    clean_parent = req.parent_name.strip() if req.parent_name and req.parent_name.strip() else None
+    if clean_ticker and not clean_parent:
+        clean_parent = clean_ticker
+
+    settings = get_settings()
+    yaml_path = settings.data_dir / "manual_ticker_overrides.yaml"
+    data: dict[str, Any] = {"overrides": {}}
+    if yaml_path.exists():
+        try:
+            data = yaml.safe_load(yaml_path.read_text(encoding="utf-8")) or {"overrides": {}}
+        except Exception:
+            data = {"overrides": {}}
+
+    if "overrides" not in data or not isinstance(data["overrides"], dict):
+        data["overrides"] = {}
+
+    norm_key = normalize_company_name(clean_raw)
+    data["overrides"][norm_key] = {
+        "parent_company_name": clean_parent or f"{clean_raw} (private)",
+        "ticker": clean_ticker,
+    }
+
+    yaml_path.write_text(yaml.dump(data, sort_keys=False), encoding="utf-8")
+    get_overrides(force_refresh=True)
+
+    # Re-resolve and update awards in database
+    conn = _db()
+    updated_count = 0
+    try:
+        rows = conn.execute(
+            "SELECT id, awardee_name_raw FROM awards WHERE awardee_name_raw = ? OR ticker IS NULL",
+            (clean_raw,),
+        ).fetchall()
+        for r in rows:
+            if normalize_company_name(r["awardee_name_raw"]) == norm_key:
+                conn.execute(
+                    "UPDATE awards SET ticker = ?, parent_company_name = ? WHERE id = ?",
+                    (clean_ticker, clean_parent, r["id"]),
+                )
+                updated_count += 1
+                if clean_ticker:
+                    full_row = conn.execute("SELECT * FROM awards WHERE id = ?", (r["id"],)).fetchone()
+                    d = dict(full_row)
+                    d["is_idiq"] = bool(d.get("is_idiq"))
+                    d["is_modification"] = bool(d.get("is_modification"))
+                    aw = Award(**d)
+                    enr, co = enrich_award(aw, conn)
+                    res = score_award(enr, co)
+                    update_award_score(conn, r["id"], res.score, str(res.level))
+        conn.commit()
+    finally:
+        conn.close()
+
+    return {
+        "status": "ok",
+        "raw_name": clean_raw,
+        "ticker": clean_ticker,
+        "parent_name": clean_parent,
+        "updated_awards": updated_count,
+    }
+
+
+import threading
+
+_scan_lock = threading.Lock()
+_scan_status = {"running": False, "last_status": "idle", "last_run": None, "message": ""}
+
+
+@app.post("/api/scan/trigger")
+def trigger_scan() -> dict[str, Any]:
+    """Trigger a fast USAspending scan in the background."""
+    from govaward_alpha.timeutil import utcnow
+
+    global _scan_status
+    if _scan_lock.locked():
+        return {"status": "busy", "message": "A scan is currently running."}
+
+    def _run_bg():
+        global _scan_status
+        with _scan_lock:
+            _scan_status["running"] = True
+            _scan_status["last_run"] = utcnow().isoformat()
+            try:
+                from govaward_alpha.services.scan_service import run_source
+
+                run_source("usaspending", lookback=1)
+                _scan_status["last_status"] = "success"
+                _scan_status["message"] = "Scan completed successfully."
+            except Exception as exc:
+                _scan_status["last_status"] = "error"
+                _scan_status["message"] = str(exc)
+            finally:
+                _scan_status["running"] = False
+
+    t = threading.Thread(target=_run_bg, daemon=True)
+    t.start()
+    return {"status": "started", "message": "Background scan initiated."}
+
+
+@app.get("/api/scan/status")
+def get_scan_status() -> dict[str, Any]:
+    return _scan_status
+
