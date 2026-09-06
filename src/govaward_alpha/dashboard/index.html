@@ -1902,6 +1902,7 @@ function fmt(val) {
   if (val >= 1e3) return '$' + (val/1e3).toFixed(0) + 'K';
   return '$' + Number(val).toLocaleString();
 }
+const fmtMoney = fmt;
 
 function fmtVol(val) {
   if (!val) return 'N/A';
