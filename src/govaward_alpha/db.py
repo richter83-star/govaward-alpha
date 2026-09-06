@@ -120,6 +120,79 @@ CREATE TABLE IF NOT EXISTS source_runs (
     records_updated  INTEGER DEFAULT 0,
     error_message    TEXT    DEFAULT ''
 );
+
+CREATE TABLE IF NOT EXISTS trade_configs (
+    id                  INTEGER PRIMARY KEY CHECK (id = 1),
+    engine_mode         TEXT    NOT NULL DEFAULT 'PAPER', -- OFF | PAPER | LIVE
+    default_allocation  REAL    NOT NULL DEFAULT 1000.0,
+    min_ratio_pct       REAL    NOT NULL DEFAULT 10.0,
+    min_score           INTEGER NOT NULL DEFAULT 70,
+    take_profit_pct     REAL    NOT NULL DEFAULT 10.0,
+    stop_loss_pct       REAL    NOT NULL DEFAULT 4.0,
+    trailing_stop       INTEGER NOT NULL DEFAULT 0,
+    paper_cash_balance  REAL    NOT NULL DEFAULT 50000.0,
+    updated_at          TEXT    NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS company_trade_approvals (
+    ticker              TEXT    PRIMARY KEY,
+    company_name        TEXT    DEFAULT '',
+    is_approved         INTEGER NOT NULL DEFAULT 0,
+    auto_trade_enabled  INTEGER NOT NULL DEFAULT 0,
+    max_allocation      REAL    DEFAULT 1000.0,
+    notes               TEXT    DEFAULT '',
+    updated_at          TEXT    NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS orders (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    award_id            INTEGER REFERENCES awards(id),
+    ticker              TEXT    NOT NULL,
+    side                TEXT    NOT NULL DEFAULT 'BUY',
+    status              TEXT    NOT NULL DEFAULT 'PENDING_APPROVAL', -- PENDING_APPROVAL | FILLED | REJECTED | CANCELLED
+    mode                TEXT    NOT NULL DEFAULT 'PAPER',            -- PAPER | LIVE
+    shares              REAL    NOT NULL,
+    signal_price        REAL    NOT NULL,
+    fill_price          REAL,
+    total_cost          REAL,
+    take_profit_price   REAL,
+    stop_loss_price     REAL,
+    trigger_ratio_pct   REAL,
+    verdict             TEXT,
+    headline            TEXT,
+    strategy_note       TEXT,
+    created_at          TEXT    NOT NULL,
+    filled_at           TEXT,
+    closed_at           TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_orders_ticker ON orders(ticker);
+CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
+
+CREATE TABLE IF NOT EXISTS positions (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id            INTEGER REFERENCES orders(id),
+    ticker              TEXT    NOT NULL,
+    mode                TEXT    NOT NULL DEFAULT 'PAPER',
+    shares              REAL    NOT NULL,
+    entry_price         REAL    NOT NULL,
+    current_price       REAL    NOT NULL,
+    take_profit_price   REAL,
+    stop_loss_price     REAL,
+    unrealized_pnl      REAL    DEFAULT 0.0,
+    unrealized_pnl_pct  REAL    DEFAULT 0.0,
+    status              TEXT    NOT NULL DEFAULT 'OPEN', -- OPEN | CLOSED
+    exit_price          REAL,
+    realized_pnl        REAL    DEFAULT 0.0,
+    realized_pnl_pct    REAL    DEFAULT 0.0,
+    exit_reason         TEXT    DEFAULT '',              -- TAKE_PROFIT | STOP_LOSS | MANUAL_CLOSE
+    opened_at           TEXT    NOT NULL,
+    closed_at           TEXT,
+    updated_at          TEXT    NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_positions_ticker ON positions(ticker);
+CREATE INDEX IF NOT EXISTS idx_positions_status ON positions(status);
 """
 
 
@@ -149,6 +222,15 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.commit()
         logger.info("Migration: added alert_level column to awards")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_awards_score ON awards(materiality_score)")
+    conn.commit()
+
+    # Ensure default trade_configs row exists
+    conn.execute("""
+        INSERT OR IGNORE INTO trade_configs (
+            id, engine_mode, default_allocation, min_ratio_pct, min_score,
+            take_profit_pct, stop_loss_pct, trailing_stop, paper_cash_balance, updated_at
+        ) VALUES (1, 'PAPER', 1000.0, 10.0, 70, 10.0, 4.0, 0, 50000.0, datetime('now'))
+    """)
     conn.commit()
 
 
@@ -488,3 +570,304 @@ def finish_run(
         (utcnow().isoformat(), status, seen, inserted, updated, error, run_id),
     )
     conn.commit()
+
+
+# ---------------------------------------------------------------------------
+# Auto-Trading & Alpha Play Database Operations
+# ---------------------------------------------------------------------------
+
+def get_trade_config(conn: sqlite3.Connection) -> dict[str, Any]:
+    row = conn.execute("SELECT * FROM trade_configs WHERE id=1").fetchone()
+    if not row:
+        conn.execute("""
+            INSERT OR IGNORE INTO trade_configs (
+                id, engine_mode, default_allocation, min_ratio_pct, min_score,
+                take_profit_pct, stop_loss_pct, trailing_stop, paper_cash_balance, updated_at
+            ) VALUES (1, 'PAPER', 1000.0, 10.0, 70, 10.0, 4.0, 0, 50000.0, ?)
+        """, (utcnow().isoformat(),))
+        conn.commit()
+        row = conn.execute("SELECT * FROM trade_configs WHERE id=1").fetchone()
+    return dict(row) if row else {}
+
+
+def update_trade_config(conn: sqlite3.Connection, **kwargs) -> dict[str, Any]:
+    valid_keys = {
+        "engine_mode", "default_allocation", "min_ratio_pct", "min_score",
+        "take_profit_pct", "stop_loss_pct", "trailing_stop", "paper_cash_balance"
+    }
+    updates = []
+    params = []
+    for k, v in kwargs.items():
+        if k in valid_keys and v is not None:
+            updates.append(f"{k} = ?")
+            params.append(v)
+    if updates:
+        updates.append("updated_at = ?")
+        params.append(utcnow().isoformat())
+        params.append(1)
+        sql = f"UPDATE trade_configs SET {', '.join(updates)} WHERE id = ?"
+        conn.execute(sql, params)
+        conn.commit()
+    return get_trade_config(conn)
+
+
+def get_company_approvals(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+    rows = conn.execute("""
+        SELECT COALESCE(co.ticker, ca.ticker) as ticker,
+               COALESCE(co.company_name, ca.company_name, '') as company_name,
+               co.market_cap, co.sector,
+               COALESCE(ca.is_approved, 0) as is_approved,
+               COALESCE(ca.auto_trade_enabled, 0) as auto_trade_enabled,
+               COALESCE(ca.max_allocation, 1000.0) as max_allocation,
+               COALESCE(ca.notes, '') as notes,
+               ca.updated_at
+        FROM companies co
+        LEFT JOIN company_trade_approvals ca ON co.ticker = ca.ticker
+        UNION
+        SELECT ca.ticker,
+               COALESCE(co.company_name, ca.company_name, '') as company_name,
+               co.market_cap, co.sector,
+               COALESCE(ca.is_approved, 0) as is_approved,
+               COALESCE(ca.auto_trade_enabled, 0) as auto_trade_enabled,
+               COALESCE(ca.max_allocation, 1000.0) as max_allocation,
+               COALESCE(ca.notes, '') as notes,
+               ca.updated_at
+        FROM company_trade_approvals ca
+        LEFT JOIN companies co ON ca.ticker = co.ticker
+        ORDER BY market_cap DESC NULLS LAST
+    """).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_company_approval(conn: sqlite3.Connection, ticker: str) -> dict[str, Any] | None:
+    row = conn.execute("SELECT * FROM company_trade_approvals WHERE ticker=?", (ticker.upper(),)).fetchone()
+    return dict(row) if row else None
+
+
+def set_company_approval(
+    conn: sqlite3.Connection,
+    ticker: str,
+    is_approved: int,
+    auto_trade_enabled: int,
+    max_allocation: float | None = None,
+    notes: str | None = None,
+) -> dict[str, Any]:
+    ticker = ticker.upper()
+    now = utcnow().isoformat()
+    existing = get_company_approval(conn, ticker)
+    if existing:
+        max_alloc = max_allocation if max_allocation is not None else existing.get("max_allocation", 1000.0)
+        n = notes if notes is not None else existing.get("notes", "")
+        conn.execute("""
+            UPDATE company_trade_approvals
+            SET is_approved=?, auto_trade_enabled=?, max_allocation=?, notes=?, updated_at=?
+            WHERE ticker=?
+        """, (is_approved, auto_trade_enabled, max_alloc, n, now, ticker))
+    else:
+        # Look up company name
+        co_row = conn.execute("SELECT company_name FROM companies WHERE ticker=?", (ticker,)).fetchone()
+        co_name = co_row["company_name"] if co_row else ""
+        max_alloc = max_allocation if max_allocation is not None else 1000.0
+        n = notes or ""
+        conn.execute("""
+            INSERT INTO company_trade_approvals (
+                ticker, company_name, is_approved, auto_trade_enabled, max_allocation, notes, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (ticker, co_name, is_approved, auto_trade_enabled, max_alloc, n, now))
+    conn.commit()
+    return get_company_approval(conn, ticker) or {}
+
+
+def insert_order(conn: sqlite3.Connection, order: dict[str, Any]) -> int:
+    now = utcnow().isoformat()
+    cur = conn.execute("""
+        INSERT INTO orders (
+            award_id, ticker, side, status, mode, shares, signal_price, fill_price,
+            total_cost, take_profit_price, stop_loss_price, trigger_ratio_pct,
+            verdict, headline, strategy_note, created_at, filled_at, closed_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        order.get("award_id"),
+        order["ticker"].upper(),
+        order.get("side", "BUY"),
+        order.get("status", "PENDING_APPROVAL"),
+        order.get("mode", "PAPER"),
+        order["shares"],
+        order["signal_price"],
+        order.get("fill_price"),
+        order.get("total_cost"),
+        order.get("take_profit_price"),
+        order.get("stop_loss_price"),
+        order.get("trigger_ratio_pct"),
+        order.get("verdict"),
+        order.get("headline"),
+        order.get("strategy_note"),
+        order.get("created_at", now),
+        order.get("filled_at"),
+        order.get("closed_at"),
+    ))
+    conn.commit()
+    return cur.lastrowid
+
+
+def get_orders(conn: sqlite3.Connection, limit: int = 100, status: str | None = None) -> list[dict[str, Any]]:
+    if status:
+        rows = conn.execute(
+            "SELECT * FROM orders WHERE status=? ORDER BY id DESC LIMIT ?",
+            (status, limit),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT * FROM orders ORDER BY id DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_order_by_id(conn: sqlite3.Connection, order_id: int) -> dict[str, Any] | None:
+    row = conn.execute("SELECT * FROM orders WHERE id=?", (order_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def update_order_status(
+    conn: sqlite3.Connection,
+    order_id: int,
+    status: str,
+    fill_price: float | None = None,
+    total_cost: float | None = None,
+) -> None:
+    now = utcnow().isoformat()
+    if status == "FILLED":
+        conn.execute("""
+            UPDATE orders SET status=?, fill_price=?, total_cost=?, filled_at=?
+            WHERE id=?
+        """, (status, fill_price, total_cost, now, order_id))
+    elif status in ("REJECTED", "CANCELLED"):
+        conn.execute("UPDATE orders SET status=?, closed_at=? WHERE id=?", (status, now, order_id))
+    else:
+        conn.execute("UPDATE orders SET status=? WHERE id=?", (status, order_id))
+    conn.commit()
+
+
+def insert_position(conn: sqlite3.Connection, pos: dict[str, Any]) -> int:
+    now = utcnow().isoformat()
+    cur = conn.execute("""
+        INSERT INTO positions (
+            order_id, ticker, mode, shares, entry_price, current_price,
+            take_profit_price, stop_loss_price, unrealized_pnl, unrealized_pnl_pct,
+            status, opened_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        pos.get("order_id"),
+        pos["ticker"].upper(),
+        pos.get("mode", "PAPER"),
+        pos["shares"],
+        pos["entry_price"],
+        pos.get("current_price", pos["entry_price"]),
+        pos.get("take_profit_price"),
+        pos.get("stop_loss_price"),
+        pos.get("unrealized_pnl", 0.0),
+        pos.get("unrealized_pnl_pct", 0.0),
+        pos.get("status", "OPEN"),
+        pos.get("opened_at", now),
+        now,
+    ))
+    conn.commit()
+    return cur.lastrowid
+
+
+def get_positions(conn: sqlite3.Connection, status: str = "OPEN") -> list[dict[str, Any]]:
+    rows = conn.execute(
+        "SELECT * FROM positions WHERE status=? ORDER BY id DESC",
+        (status,),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_position_by_id(conn: sqlite3.Connection, position_id: int) -> dict[str, Any] | None:
+    row = conn.execute("SELECT * FROM positions WHERE id=?", (position_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def update_position_price(conn: sqlite3.Connection, position_id: int, current_price: float) -> None:
+    row = conn.execute("SELECT shares, entry_price FROM positions WHERE id=?", (position_id,)).fetchone()
+    if not row:
+        return
+    shares = row["shares"]
+    entry_price = row["entry_price"]
+    unrealized_pnl = (current_price - entry_price) * shares
+    unrealized_pnl_pct = ((current_price - entry_price) / entry_price) * 100.0 if entry_price else 0.0
+    now = utcnow().isoformat()
+    conn.execute("""
+        UPDATE positions
+        SET current_price=?, unrealized_pnl=?, unrealized_pnl_pct=?, updated_at=?
+        WHERE id=?
+    """, (current_price, round(unrealized_pnl, 2), round(unrealized_pnl_pct, 2), now, position_id))
+    conn.commit()
+
+
+def close_position(
+    conn: sqlite3.Connection,
+    position_id: int,
+    exit_price: float,
+    exit_reason: str = "MANUAL_CLOSE",
+) -> dict[str, Any] | None:
+    row = conn.execute("SELECT * FROM positions WHERE id=?", (position_id,)).fetchone()
+    if not row or row["status"] == "CLOSED":
+        return None
+    shares = row["shares"]
+    entry_price = row["entry_price"]
+    realized_pnl = (exit_price - entry_price) * shares
+    realized_pnl_pct = ((exit_price - entry_price) / entry_price) * 100.0 if entry_price else 0.0
+    now = utcnow().isoformat()
+
+    conn.execute("""
+        UPDATE positions
+        SET status='CLOSED', exit_price=?, realized_pnl=?, realized_pnl_pct=?,
+            exit_reason=?, closed_at=?, updated_at=?
+        WHERE id=?
+    """, (exit_price, round(realized_pnl, 2), round(realized_pnl_pct, 2), exit_reason, now, now, position_id))
+
+    # If paper mode, credit cash back to paper_cash_balance + realized PnL
+    if row["mode"] == "PAPER":
+        total_proceeds = exit_price * shares
+        conn.execute("UPDATE trade_configs SET paper_cash_balance = paper_cash_balance + ? WHERE id=1", (total_proceeds,))
+
+    conn.commit()
+    return get_position_by_id(conn, position_id)
+
+
+def get_trader_stats(conn: sqlite3.Connection) -> dict[str, Any]:
+    cfg = get_trade_config(conn)
+    cash = cfg.get("paper_cash_balance", 50000.0)
+
+    open_positions = get_positions(conn, status="OPEN")
+    open_equity = sum(p["current_price"] * p["shares"] for p in open_positions)
+    open_unrealized_pnl = sum(p.get("unrealized_pnl", 0.0) for p in open_positions)
+
+    closed_positions = get_positions(conn, status="CLOSED")
+    total_realized_pnl = sum(p.get("realized_pnl", 0.0) for p in closed_positions)
+    winning_trades = sum(1 for p in closed_positions if (p.get("realized_pnl") or 0) > 0)
+    losing_trades = sum(1 for p in closed_positions if (p.get("realized_pnl") or 0) < 0)
+    total_closed = len(closed_positions)
+    win_rate = round((winning_trades / total_closed) * 100.0, 1) if total_closed > 0 else 0.0
+
+    pending_orders = conn.execute("SELECT count(*) FROM orders WHERE status='PENDING_APPROVAL'").fetchone()[0]
+
+    return {
+        "engine_mode": cfg.get("engine_mode", "PAPER"),
+        "default_allocation": cfg.get("default_allocation", 1000.0),
+        "min_ratio_pct": cfg.get("min_ratio_pct", 10.0),
+        "take_profit_pct": cfg.get("take_profit_pct", 10.0),
+        "stop_loss_pct": cfg.get("stop_loss_pct", 4.0),
+        "trailing_stop": cfg.get("trailing_stop", 0),
+        "paper_cash_balance": round(cash, 2),
+        "portfolio_equity": round(cash + open_equity, 2),
+        "open_positions_count": len(open_positions),
+        "open_unrealized_pnl": round(open_unrealized_pnl, 2),
+        "total_realized_pnl": round(total_realized_pnl, 2),
+        "winning_trades": winning_trades,
+        "losing_trades": losing_trades,
+        "win_rate": win_rate,
+        "pending_orders_count": pending_orders,
+    }

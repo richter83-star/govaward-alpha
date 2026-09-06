@@ -7,7 +7,7 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 
 from govaward_alpha.config import get_settings
@@ -383,6 +383,233 @@ def get_retail_catalysts(
                 "freshness": freshness,
             }
         }
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Auto-Trader & Alpha Play Execution API
+# ---------------------------------------------------------------------------
+
+@app.get("/api/trader/status")
+def get_trader_status() -> dict[str, Any]:
+    from govaward_alpha import db
+    conn = _db()
+    try:
+        return db.get_trader_stats(conn)
+    finally:
+        conn.close()
+
+
+@app.post("/api/trader/config")
+async def update_trader_config(
+    request: Request,
+    engine_mode: str | None = Query(None, description="OFF | PAPER | LIVE"),
+    default_allocation: float | None = Query(None, ge=100.0, le=100000.0),
+    min_ratio_pct: float | None = Query(None, ge=1.0, le=100.0),
+    take_profit_pct: float | None = Query(None, ge=1.0, le=100.0),
+    stop_loss_pct: float | None = Query(None, ge=0.5, le=50.0),
+    trailing_stop: int | None = Query(None, ge=0, le=1),
+) -> dict[str, Any]:
+    from govaward_alpha import db
+    body: dict[str, Any] = {}
+    if request.headers.get("content-type", "").startswith("application/json"):
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+
+    em = body.get("engine_mode", engine_mode)
+    da = body.get("default_allocation", default_allocation)
+    mr = body.get("min_ratio_pct", min_ratio_pct)
+    tp = body.get("take_profit_pct", take_profit_pct)
+    sl = body.get("stop_loss_pct", stop_loss_pct)
+    ts = body.get("trailing_stop", trailing_stop)
+
+    conn = _db()
+    try:
+        db.update_trade_config(
+            conn,
+            engine_mode=em,
+            default_allocation=da,
+            min_ratio_pct=mr,
+            take_profit_pct=tp,
+            stop_loss_pct=sl,
+            trailing_stop=ts,
+        )
+        return db.get_trader_stats(conn)
+    finally:
+        conn.close()
+
+
+@app.get("/api/trader/approvals")
+def list_company_approvals() -> list[dict[str, Any]]:
+    from govaward_alpha import db
+    conn = _db()
+    try:
+        return db.get_company_approvals(conn)
+    finally:
+        conn.close()
+
+
+@app.post("/api/trader/approvals/{ticker}")
+async def set_company_approval(
+    ticker: str,
+    request: Request,
+    is_approved: int | None = Query(None, ge=0, le=1),
+    auto_trade_enabled: int | None = Query(None, ge=0, le=1),
+    max_allocation: float | None = Query(None, ge=100.0),
+    notes: str | None = Query(None),
+) -> dict[str, Any]:
+    from govaward_alpha import db
+    body: dict[str, Any] = {}
+    if request.headers.get("content-type", "").startswith("application/json"):
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+
+    appr_raw = body.get("is_approved", is_approved)
+    appr_val = 1 if (appr_raw is True or appr_raw == 1 or appr_raw == "1") else (0 if appr_raw is not None else 1)
+
+    auto_raw = body.get("auto_trade_enabled", auto_trade_enabled)
+    auto_val = 1 if (auto_raw is True or auto_raw == 1 or auto_raw == "1") else 0
+
+    alloc_raw = body.get("max_allocation", max_allocation)
+    alloc_val = float(alloc_raw or 1000.0)
+
+    notes_raw = body.get("notes", notes)
+    notes_val = str(notes_raw or "")
+
+    conn = _db()
+    try:
+        res = db.set_company_approval(
+            conn,
+            ticker=ticker,
+            is_approved=appr_val,
+            auto_trade_enabled=auto_val,
+            max_allocation=alloc_val,
+            notes=notes_val,
+        )
+        return {"ok": True, **res}
+    finally:
+        conn.close()
+
+
+@app.get("/api/trader/orders")
+def list_trader_orders(
+    limit: int = Query(100, ge=1, le=500),
+    status: str = Query(None),
+) -> list[dict[str, Any]]:
+    from govaward_alpha import db
+    conn = _db()
+    try:
+        return db.get_orders(conn, limit=limit, status=status)
+    finally:
+        conn.close()
+
+
+@app.post("/api/trader/orders/{order_id}/approve")
+def approve_trader_order(order_id: int) -> dict[str, Any]:
+    from govaward_alpha.services.trade_engine import trade_engine
+    conn = _db()
+    try:
+        res = trade_engine.approve_and_execute_order(conn, order_id)
+        if not res:
+            raise HTTPException(status_code=400, detail="Order not found or not in PENDING_APPROVAL state")
+        return res
+    finally:
+        conn.close()
+
+
+@app.post("/api/trader/orders/{order_id}/reject")
+def reject_trader_order(order_id: int) -> dict[str, Any]:
+    from govaward_alpha.services.trade_engine import trade_engine
+    conn = _db()
+    try:
+        res = trade_engine.reject_order(conn, order_id)
+        if not res:
+            raise HTTPException(status_code=404, detail="Order not found")
+        return res
+    finally:
+        conn.close()
+
+
+@app.get("/api/trader/positions")
+def list_trader_positions(status: str = Query("OPEN")) -> list[dict[str, Any]]:
+    from govaward_alpha import db
+    from govaward_alpha.services.trade_engine import trade_engine
+    conn = _db()
+    try:
+        # Update open positions with live quotes if requested
+        if status == "OPEN":
+            trade_engine.monitor_and_update_positions(conn)
+        return db.get_positions(conn, status=status)
+    finally:
+        conn.close()
+
+
+@app.post("/api/trader/positions/{position_id}/close")
+def close_trader_position(position_id: int) -> dict[str, Any]:
+    from govaward_alpha.services.trade_engine import trade_engine
+    conn = _db()
+    try:
+        res = trade_engine.close_position_manually(conn, position_id)
+        if not res:
+            raise HTTPException(status_code=400, detail="Position not found or already closed")
+        return res
+    finally:
+        conn.close()
+
+
+@app.post("/api/trader/stage_catalyst/{award_id}")
+def stage_catalyst_trade(award_id: int) -> dict[str, Any]:
+    from govaward_alpha.models import Award, Company, ScoreResult
+    from govaward_alpha.services.trade_engine import trade_engine
+    from govaward_alpha.enrich.gemini_enricher import synthesize_retail_strategy
+
+    conn = _db()
+    try:
+        row = conn.execute("""
+            SELECT aw.*, co.company_name, co.market_cap, co.trailing_revenue, co.sector
+            FROM awards aw
+            LEFT JOIN companies co ON aw.ticker = co.ticker
+            WHERE aw.id = ?
+        """, (award_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Award not found")
+
+        r = dict(row)
+        if not r.get("ticker") or r["ticker"] == "UNRESOLVED":
+            raise HTTPException(status_code=400, detail="Award ticker unresolved — cannot stage trade")
+
+        aw = Award(
+            source=r["source"] or "manual",
+            source_award_id=str(r["source_award_id"]),
+            ticker=r["ticker"],
+            awardee_name_raw=r["awardee_name_raw"] or "",
+            award_amount=r["award_amount"],
+            obligated_amount=r["obligated_amount"],
+            agency=r["agency"] or "",
+            description=r["description"] or "",
+            is_idiq=bool(r["is_idiq"]),
+            is_ceiling_only=bool(r["is_ceiling_only"]),
+            is_modification=bool(r["is_modification"]),
+        )
+        aw.id = award_id
+        co = Company(
+            ticker=r["ticker"],
+            company_name=r["company_name"] or "",
+            market_cap=r["market_cap"],
+            trailing_revenue=r["trailing_revenue"],
+            sector=r["sector"] or "",
+        )
+        sc = ScoreResult(score=r["materiality_score"] or 75, level=r["alert_level"] or "ORANGE", reasons=["Manual stage"])
+        syn = synthesize_retail_strategy(aw, co, sc)
+        order = trade_engine.evaluate_and_stage_award(conn, aw, co, sc, gemini_strategy=syn)
+        if not order:
+            raise HTTPException(status_code=400, detail="Award did not pass Alpha Play filters or trade already exists")
+        return order
     finally:
         conn.close()
 

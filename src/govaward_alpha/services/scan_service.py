@@ -97,6 +97,13 @@ def run_source(
                     alerted = process_alert(conn, award_id, enriched_award, company, result)
                     if alerted:
                         stats["alerted"] += 1
+                        try:
+                            from govaward_alpha.services.trade_engine import trade_engine
+                            alert_row = conn.execute("SELECT gemini_analysis_json FROM alerts WHERE award_id=?", (award_id,)).fetchone()
+                            ai_data = json.loads(alert_row[0]) if (alert_row and alert_row[0]) else None
+                            trade_engine.evaluate_and_stage_award(conn, enriched_award, company, result, gemini_strategy=ai_data)
+                        except Exception as trade_exc:
+                            logger.debug("Auto-trade staging error: %s", trade_exc)
                 elif not fire and is_new:
                     logger.debug(
                         "No alert for '%s': %s",

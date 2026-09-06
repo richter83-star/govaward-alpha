@@ -14,6 +14,7 @@ class Award(BaseModel):
     """Normalized award record, ready for DB persistence."""
 
     # Identity
+    id: int | None = None
     source: str                               # "sam_gov" | "defense_daily" | "usaspending"
     source_award_id: str                      # unique ID within that source
     source_url: str = ""

@@ -1416,6 +1416,360 @@
       align-items: center;
       gap: 4px;
     }
+
+    /* ── Auto-Trader Execution Desk Styles ─────────────────── */
+    .trader-hero-banner {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(13, 17, 23, 0.95) 100%);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      border-radius: var(--radius);
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      flex-shrink: 0;
+      position: relative;
+    }
+    .trader-hero-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .trader-hero-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
+    }
+    .trader-hero-subtitle {
+      font-size: 11.5px;
+      color: var(--text-dim);
+      line-height: 1.4;
+      margin-top: 2px;
+    }
+    .mode-pill-badge {
+      font-family: var(--mono);
+      font-size: 9.5px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 4px;
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--green);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+    .trader-mode-controls {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--bg);
+      border: 1px solid var(--border-lt);
+      padding: 3px 6px;
+      border-radius: 6px;
+    }
+    .mode-btn {
+      padding: 4px 9px;
+      font-size: 10.5px;
+      font-weight: 700;
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      color: var(--text-mute);
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .mode-btn:hover { color: var(--text); }
+    .mode-btn.active-off   { background: rgba(244, 63, 94, 0.15); color: var(--red); border-color: rgba(244,63,94,0.4); }
+    .mode-btn.active-paper { background: rgba(245, 158, 11, 0.15); color: var(--amber); border-color: rgba(245,158,11,0.4); }
+    .mode-btn.active-live  { background: rgba(16, 185, 129, 0.2); color: var(--green); border-color: rgba(16,185,129,0.4); }
+
+    .trader-metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 8px;
+    }
+    .trader-metric-box {
+      background: rgba(7, 8, 11, 0.6);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 6px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .trader-metric-label {
+      font-size: 9px;
+      font-weight: 700;
+      color: var(--text-mute);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+    .trader-metric-val {
+      font-size: 14.5px;
+      font-weight: 700;
+      font-family: var(--mono);
+      color: var(--text);
+    }
+    .trader-config-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 6px 12px;
+      flex-wrap: wrap;
+    }
+    .trader-config-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .trader-cfg-lbl {
+      font-size: 10.5px;
+      font-weight: 600;
+      color: var(--text-dim);
+    }
+    .trader-cfg-input-wrap {
+      display: inline-flex;
+      align-items: center;
+      background: var(--bg);
+      border: 1px solid var(--border-lt);
+      border-radius: 4px;
+      padding: 2px 6px;
+      gap: 3px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-mute);
+    }
+    .trader-cfg-input-wrap input {
+      background: transparent;
+      border: none;
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 11.5px;
+      font-weight: 600;
+      width: 55px;
+      outline: none;
+    }
+    .btn-save-cfg {
+      margin-left: auto;
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--green);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .btn-save-cfg:hover { background: rgba(16, 185, 129, 0.25); }
+
+    .trader-workspace-grid {
+      flex: 1;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 12px;
+      overflow-y: auto;
+      padding-bottom: 24px;
+    }
+    .trader-col {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-height: 0;
+    }
+    .trader-panel {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .trader-panel-hdr {
+      padding: 10px 14px;
+      background: var(--bg-elevated);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .trader-panel-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      letter-spacing: .04em;
+    }
+    .trader-orders-container, .trader-positions-container, .trader-history-container {
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 380px;
+      overflow-y: auto;
+    }
+
+    .order-card {
+      background: var(--bg);
+      border: 1px solid var(--border-lt);
+      border-radius: 6px;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      border-left: 3px solid var(--amber);
+    }
+    .order-card-hdr {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .order-card-ticker {
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--amber);
+    }
+    .order-card-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-approve-trade {
+      background: var(--green-glow);
+      color: var(--green);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .btn-approve-trade:hover { background: rgba(16, 185, 129, 0.3); }
+    .btn-reject-trade {
+      background: var(--bg-hover);
+      color: var(--text-mute);
+      border: 1px solid var(--border-lt);
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn-reject-trade:hover { color: var(--red); border-color: rgba(244,63,94,0.3); }
+
+    .position-row {
+      display: grid;
+      grid-template-columns: 80px 75px 85px 85px 100px 100px 90px;
+      align-items: center;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border-lt);
+      font-size: 11.5px;
+      font-family: var(--mono);
+    }
+    .position-row:hover { background: var(--bg-hover); }
+
+    .pnl-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 700;
+      font-size: 11px;
+      font-family: var(--mono);
+    }
+    .pnl-pos { background: rgba(16, 185, 129, 0.15); color: var(--green); border: 1px solid rgba(16, 185, 129, 0.3); }
+    .pnl-neg { background: rgba(244, 63, 94, 0.15); color: var(--red); border: 1px solid rgba(244, 63, 94, 0.3); }
+
+    .btn-close-pos {
+      background: rgba(244, 63, 94, 0.15);
+      color: var(--red);
+      border: 1px solid rgba(244, 63, 94, 0.35);
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .btn-close-pos:hover { background: rgba(244, 63, 94, 0.28); }
+
+    .trader-approval-table-wrap {
+      max-height: 520px;
+      overflow-y: auto;
+    }
+    .trader-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11.5px;
+    }
+    .trader-table th {
+      background: var(--bg-elevated);
+      color: var(--text-dim);
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 9.5px;
+      letter-spacing: .06em;
+      padding: 7px 10px;
+      position: sticky;
+      top: 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .trader-table td {
+      padding: 7px 10px;
+      border-bottom: 1px solid var(--border-lt);
+      color: var(--text);
+    }
+    .trader-table tr:hover td { background: var(--bg-hover); }
+
+    /* Custom Switch Toggle */
+    .switch-ui {
+      position: relative;
+      display: inline-block;
+      width: 32px;
+      height: 17px;
+    }
+    .switch-ui input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .slider-ui {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: var(--border);
+      transition: .2s;
+      border-radius: 17px;
+    }
+    .slider-ui:before {
+      position: absolute;
+      content: "";
+      height: 11px;
+      width: 11px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .2s;
+      border-radius: 50%;
+    }
+    input:checked + .slider-ui {
+      background-color: var(--green);
+    }
+    input:checked + .slider-ui:before {
+      transform: translateX(15px);
+    }
   </style>
 </head>
 <body>
@@ -1446,7 +1800,7 @@
 
     <div class="shortcut-hint" onclick="focusSearch()" title="Click to focus search or press /">
       <span class="kbd">/</span> Search
-      <span class="kbd">1–7</span> Tabs
+      <span class="kbd">1–8</span> Tabs
       <span class="kbd">R</span> Refresh
     </div>
 
@@ -1473,6 +1827,10 @@
     <div class="nav-item active" data-page="retail" onclick="navigate('retail',this)">
       <span class="nav-icon">🎯</span> Retail Alpha Feed
       <span class="nav-badge nav-badge-fire" id="badge-retail">0</span>
+    </div>
+    <div class="nav-item" data-page="trader" onclick="navigate('trader',this)">
+      <span class="nav-icon">🤖</span> Auto-Trader Desk
+      <span class="nav-badge" id="badge-trader-pending" style="background:var(--amber-glow);color:var(--amber)">0</span>
     </div>
 
     <div class="nav-label" style="margin-top:12px">Procurement Pipeline</div>
@@ -1595,6 +1953,173 @@
       <!-- Catalyst Cards Stream -->
       <div class="catalyst-cards-wrap" id="retail-cards-container">
         <div class="loading"><div class="spinner"></div> Scanning for Small/Mid-Cap $50M+ Catalysts…</div>
+      </div>
+    </section>
+
+    <!-- ── Page Trader: Auto-Trader & Alpha Play Desk ── -->
+    <section class="page" id="page-trader">
+      <!-- Executive Control Bar -->
+      <div class="trader-hero-banner">
+        <div class="trader-hero-top">
+          <div>
+            <div class="trader-hero-title">
+              <span>🤖</span> Alpha Play Auto-Trader & Execution Desk
+              <span class="mode-pill-badge" id="trader-active-mode-badge">PAPER SIMULATION</span>
+            </div>
+            <div class="trader-hero-subtitle">
+              Automate or 1-click execute catalyst front-running trades. Configure per-company authorization, position sizing, profit targets, and stop losses.
+            </div>
+          </div>
+
+          <!-- Mode Switches -->
+          <div class="trader-mode-controls">
+            <span style="font-size:10px;font-weight:700;color:var(--text-dim);margin-right:4px">ENGINE MODE:</span>
+            <button class="mode-btn" id="btn-engine-off" onclick="setTraderEngineMode('OFF')">🔴 OFF</button>
+            <button class="mode-btn active-paper" id="btn-engine-paper" onclick="setTraderEngineMode('PAPER')">🟡 PAPER</button>
+            <button class="mode-btn" id="btn-engine-live" onclick="setTraderEngineMode('LIVE')">🟢 LIVE (GATED)</button>
+          </div>
+        </div>
+
+        <!-- Metric KPI Ribbon -->
+        <div class="trader-metrics-grid">
+          <div class="trader-metric-box">
+            <span class="trader-metric-label">Portfolio Equity</span>
+            <span class="trader-metric-val" id="metric-equity">$50,000.00</span>
+          </div>
+          <div class="trader-metric-box">
+            <span class="trader-metric-label">Available Cash</span>
+            <span class="trader-metric-val" id="metric-cash">$50,000.00</span>
+          </div>
+          <div class="trader-metric-box">
+            <span class="trader-metric-label">Open Unrealized PnL</span>
+            <span class="trader-metric-val" id="metric-unrealized-pnl">$0.00</span>
+          </div>
+          <div class="trader-metric-box">
+            <span class="trader-metric-label">Total Realized PnL</span>
+            <span class="trader-metric-val" id="metric-realized-pnl">$0.00</span>
+          </div>
+          <div class="trader-metric-box">
+            <span class="trader-metric-label">Win Rate / Trades</span>
+            <span class="trader-metric-val" id="metric-win-rate">0.0% (0)</span>
+          </div>
+        </div>
+
+        <!-- Strategy & Threshold Bar -->
+        <div class="trader-config-bar">
+          <div class="trader-config-item">
+            <label class="trader-cfg-lbl">Default Allocation</label>
+            <div class="trader-cfg-input-wrap">
+              <span>$</span>
+              <input type="number" id="trader-cfg-alloc" min="100" max="50000" step="100" value="1000">
+            </div>
+          </div>
+          <div class="trader-config-item">
+            <label class="trader-cfg-lbl">Min Contract Ratio</label>
+            <div class="trader-cfg-input-wrap">
+              <input type="number" id="trader-cfg-ratio" min="1" max="100" step="1" value="10">
+              <span>%</span>
+            </div>
+          </div>
+          <div class="trader-config-item">
+            <label class="trader-cfg-lbl">Take-Profit Target</label>
+            <div class="trader-cfg-input-wrap">
+              <span>+</span>
+              <input type="number" id="trader-cfg-tp" min="1" max="100" step="1" value="10">
+              <span>%</span>
+            </div>
+          </div>
+          <div class="trader-config-item">
+            <label class="trader-cfg-lbl">Stop-Loss Floor</label>
+            <div class="trader-cfg-input-wrap">
+              <span>-</span>
+              <input type="number" id="trader-cfg-sl" min="1" max="50" step="0.5" value="4">
+              <span>%</span>
+            </div>
+          </div>
+          <button class="btn-save-cfg" onclick="saveTraderSettings()">
+            💾 Save Strategy
+          </button>
+        </div>
+      </div>
+
+      <!-- Main Trader Split Layout -->
+      <div class="trader-workspace-grid" style="margin-top:12px">
+        <!-- Left Column: Pending Approval Queue & Open Positions -->
+        <div class="trader-col">
+          <!-- Pending Approval Queue -->
+          <div class="trader-panel">
+            <div class="trader-panel-hdr">
+              <div class="trader-panel-title">
+                <span>⚠️</span> Pending Alpha Play Approval Queue
+                <span class="nav-badge" id="badge-queue-count">0</span>
+              </div>
+              <span style="font-size:10.5px;color:var(--text-mute)">Requires 1-Click Execution</span>
+            </div>
+            <div id="trader-pending-list" class="trader-orders-container">
+              <div class="loading"><div class="spinner"></div> Checking order queue…</div>
+            </div>
+          </div>
+
+          <!-- Active Open Positions -->
+          <div class="trader-panel">
+            <div class="trader-panel-hdr">
+              <div class="trader-panel-title">
+                <span>📈</span> Active Positions & Live Exit Monitors
+                <span class="nav-badge" id="badge-positions-count">0</span>
+              </div>
+              <button class="cat-trade-link" onclick="loadTraderDesk()" style="font-size:10px;padding:2px 8px;cursor:pointer;background:transparent;border:1px solid var(--border-lt);border-radius:4px;color:var(--text-dim)">↻ Refresh Quotes</button>
+            </div>
+            <div id="trader-positions-list" class="trader-positions-container">
+              <div class="loading"><div class="spinner"></div> Checking open positions…</div>
+            </div>
+          </div>
+
+          <!-- Closed Trade History Ledger -->
+          <div class="trader-panel">
+            <div class="trader-panel-hdr">
+              <div class="trader-panel-title">
+                <span>📜</span> Closed Trade History
+              </div>
+            </div>
+            <div id="trader-history-list" class="trader-history-container">
+              <div style="font-size:11px;color:var(--text-mute);text-align:center;padding:12px">No closed trades yet.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Column: Company Auto-Trade Authorization Matrix -->
+        <div class="trader-col">
+          <div class="trader-panel">
+            <div class="trader-panel-hdr">
+              <div>
+                <div class="trader-panel-title">
+                  <span>🏢</span> Company Approval Matrix
+                </div>
+                <div style="font-size:10.5px;color:var(--text-mute);margin-top:2px">
+                  Pre-authorize companies for 1-click or fully autonomous catalyst execution.
+                </div>
+              </div>
+              <input type="text" id="trader-approval-search" placeholder="Filter company…" oninput="filterCompanyApprovals()" style="background:var(--bg);border:1px solid var(--border-lt);border-radius:4px;padding:3px 8px;font-size:11px;color:var(--text);outline:none;width:130px">
+            </div>
+
+            <div class="trader-approval-table-wrap">
+              <table class="trader-table" id="trader-approval-table">
+                <thead>
+                  <tr>
+                    <th>Ticker / Company</th>
+                    <th>Market Cap</th>
+                    <th style="text-align:center">Approved</th>
+                    <th style="text-align:center">Auto-Trade</th>
+                    <th style="text-align:right">Max Alloc</th>
+                  </tr>
+                </thead>
+                <tbody id="trader-approval-tbody">
+                  <tr><td colspan="5" style="text-align:center;padding:20px"><div class="spinner"></div> Loading companies…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -2002,11 +2527,436 @@ function navigate(pageId, el) {
     setAppMode('terminal', false);
   }
 
+  if (pageId === 'trader')      loadTraderDesk();
   if (pageId === 'contracts')   loadAllContracts();
   if (pageId === 'unresolved')  loadUnresolved();
   if (pageId === 'analytics')   loadCharts();
   if (pageId === 'sources')     loadSources();
   if (pageId === 'companies')   loadCompanies();
+}
+
+// ── Auto-Trader Execution & Alpha Play Desk Engine ──────────
+let _traderApprovals = [];
+let _traderStatus = null;
+
+async function loadTraderDesk() {
+  await Promise.all([
+    fetchTraderStatus(),
+    fetchTraderOrders(),
+    fetchTraderPositions(),
+    fetchCompanyApprovals(),
+  ]);
+}
+
+async function fetchTraderStatus() {
+  try {
+    const res = await fetch('/api/trader/status');
+    if (!res.ok) return;
+    _traderStatus = await res.json();
+    renderTraderStatus(_traderStatus);
+  } catch (err) {
+    console.error('Failed to fetch trader status:', err);
+  }
+}
+
+function renderTraderStatus(s) {
+  if (!s) return;
+
+  // Active Mode Badge
+  const badge = document.getElementById('trader-active-mode-badge');
+  if (badge) {
+    badge.textContent = s.engine_mode === 'LIVE' ? 'LIVE GATED EXECUTION' : (s.engine_mode === 'PAPER' ? 'PAPER SIMULATION' : 'ENGINE DISABLED');
+    badge.style.color = s.engine_mode === 'LIVE' ? 'var(--green)' : (s.engine_mode === 'PAPER' ? 'var(--amber)' : 'var(--red)');
+    badge.style.borderColor = s.engine_mode === 'LIVE' ? 'rgba(16,185,129,0.4)' : (s.engine_mode === 'PAPER' ? 'rgba(245,158,11,0.4)' : 'rgba(244,63,94,0.4)');
+  }
+
+  // Buttons state
+  const btnOff = document.getElementById('btn-engine-off');
+  const btnPaper = document.getElementById('btn-engine-paper');
+  const btnLive = document.getElementById('btn-engine-live');
+  if (btnOff) btnOff.className = 'mode-btn' + (s.engine_mode === 'OFF' ? ' active-off' : '');
+  if (btnPaper) btnPaper.className = 'mode-btn' + (s.engine_mode === 'PAPER' ? ' active-paper' : '');
+  if (btnLive) btnLive.className = 'mode-btn' + (s.engine_mode === 'LIVE' ? ' active-live' : '');
+
+  // Metrics
+  const elEq = document.getElementById('metric-equity');
+  const elCash = document.getElementById('metric-cash');
+  const elUnreal = document.getElementById('metric-unrealized-pnl');
+  const elReal = document.getElementById('metric-realized-pnl');
+  const elWin = document.getElementById('metric-win-rate');
+
+  if (elEq) elEq.textContent = fmtMoney(s.portfolio_equity || s.paper_cash_balance || 50000);
+  if (elCash) elCash.textContent = fmtMoney(s.paper_cash_balance || 50000);
+
+  if (elUnreal) {
+    const val = s.open_unrealized_pnl || 0;
+    elUnreal.textContent = (val >= 0 ? '+' : '') + fmtMoney(val);
+    elUnreal.style.color = val >= 0 ? 'var(--green)' : 'var(--red)';
+  }
+
+  if (elReal) {
+    const val = s.total_realized_pnl || 0;
+    elReal.textContent = (val >= 0 ? '+' : '') + fmtMoney(val);
+    elReal.style.color = val >= 0 ? 'var(--green)' : 'var(--red)';
+  }
+
+  if (elWin) {
+    const total = (s.winning_trades || 0) + (s.losing_trades || 0);
+    elWin.textContent = `${s.win_rate || 0}% (${total})`;
+  }
+
+  // Settings inputs
+  const inAlloc = document.getElementById('trader-cfg-alloc');
+  const inRatio = document.getElementById('trader-cfg-ratio');
+  const inTp = document.getElementById('trader-cfg-tp');
+  const inSl = document.getElementById('trader-cfg-sl');
+  if (inAlloc && document.activeElement !== inAlloc) inAlloc.value = s.default_allocation || 1000;
+  if (inRatio && document.activeElement !== inRatio) inRatio.value = s.min_ratio_pct || 10;
+  if (inTp && document.activeElement !== inTp) inTp.value = s.take_profit_pct || 10;
+  if (inSl && document.activeElement !== inSl) inSl.value = s.stop_loss_pct || 4;
+
+  // Pending count badge in sidebar
+  const sbBadge = document.getElementById('badge-trader-pending');
+  if (sbBadge) {
+    sbBadge.textContent = s.pending_orders_count || 0;
+    sbBadge.style.display = (s.pending_orders_count || 0) > 0 ? 'inline-block' : 'none';
+  }
+}
+
+async function setTraderEngineMode(mode) {
+  try {
+    const res = await fetch(`/api/trader/config?engine_mode=${encodeURIComponent(mode)}`, { method: 'POST' });
+    if (res.ok) {
+      const s = await res.json();
+      renderTraderStatus(s);
+      showToast(`Auto-Trader engine switched to ${mode} mode`, 'info');
+    }
+  } catch (e) {
+    showToast('Failed to update engine mode', 'error');
+  }
+}
+
+async function saveTraderSettings() {
+  const alloc = parseFloat(document.getElementById('trader-cfg-alloc').value) || 1000;
+  const ratio = parseFloat(document.getElementById('trader-cfg-ratio').value) || 10;
+  const tp = parseFloat(document.getElementById('trader-cfg-tp').value) || 10;
+  const sl = parseFloat(document.getElementById('trader-cfg-sl').value) || 4;
+
+  try {
+    const q = new URLSearchParams({
+      default_allocation: alloc,
+      min_ratio_pct: ratio,
+      take_profit_pct: tp,
+      stop_loss_pct: sl
+    });
+    const res = await fetch(`/api/trader/config?${q.toString()}`, { method: 'POST' });
+    if (res.ok) {
+      const s = await res.json();
+      renderTraderStatus(s);
+      showToast('Trading strategy parameters updated successfully', 'success');
+    }
+  } catch (e) {
+    showToast('Failed to save strategy parameters', 'error');
+  }
+}
+
+async function fetchTraderOrders() {
+  const container = document.getElementById('trader-pending-list');
+  if (!container) return;
+
+  try {
+    const res = await fetch('/api/trader/orders?status=PENDING_APPROVAL');
+    if (!res.ok) return;
+    const orders = await res.json();
+
+    const countBadge = document.getElementById('badge-queue-count');
+    if (countBadge) countBadge.textContent = orders.length;
+
+    if (!orders || orders.length === 0) {
+      container.innerHTML = `
+        <div style="font-size:11.5px;color:var(--text-mute);text-align:center;padding:24px 12px;background:var(--bg);border-radius:6px;border:1px dashed var(--border)">
+          <div style="font-size:20px;margin-bottom:6px">🛡️</div>
+          <div>No pending trade approval signals.</div>
+          <div style="font-size:10px;margin-top:2px">Incoming awards meeting your ${document.getElementById('trader-cfg-ratio')?.value || 10}% ratio threshold will stage here.</div>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = orders.map(o => `
+      <div class="order-card" id="order-card-${o.id}">
+        <div class="order-card-hdr">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="order-card-ticker">${esc(o.ticker)}</span>
+            <span class="pnl-badge pnl-pos">🔥 ${o.trigger_ratio_pct}% Cap</span>
+            <span style="font-size:10px;color:var(--text-mute)">${new Date(o.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</span>
+          </div>
+          <div class="order-card-actions">
+            <button class="btn-approve-trade" onclick="approveOrder(${o.id})">
+              🟢 Approve & Buy ($${o.total_cost})
+            </button>
+            <button class="btn-reject-trade" onclick="rejectOrder(${o.id})">
+              ✕ Reject
+            </button>
+          </div>
+        </div>
+        <div style="font-size:11px;font-weight:600;color:var(--text)">
+          ${esc(o.headline || `${o.ticker} Alpha Catalyst`)}
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;font-size:10.5px;color:var(--text-dim);border-top:1px solid var(--border-lt);padding-top:4px">
+          <span>Signal Price: <strong>$${o.signal_price}</strong> (~${o.shares} shs)</span>
+          <span>Target: <strong style="color:var(--green)">+$${o.take_profit_price}</strong></span>
+          <span>Floor: <strong style="color:var(--red)">-$${o.stop_loss_price}</strong></span>
+        </div>
+      </div>
+    `).join('');
+  } catch (err) {
+    console.error('Error fetching trader orders:', err);
+  }
+}
+
+async function approveOrder(orderId) {
+  try {
+    const res = await fetch(`/api/trader/orders/${orderId}/approve`, { method: 'POST' });
+    if (res.ok) {
+      showToast('Order approved & filled! Position opened.', 'success');
+      await loadTraderDesk();
+    } else {
+      const err = await res.json();
+      showToast('Order execution error: ' + (err.detail || 'Unknown'), 'error');
+    }
+  } catch (e) {
+    showToast('Failed to execute order', 'error');
+  }
+}
+
+async function rejectOrder(orderId) {
+  try {
+    const res = await fetch(`/api/trader/orders/${orderId}/reject`, { method: 'POST' });
+    if (res.ok) {
+      showToast('Order dismissed', 'info');
+      await loadTraderDesk();
+    }
+  } catch (e) {
+    showToast('Failed to reject order', 'error');
+  }
+}
+
+async function fetchTraderPositions() {
+  const posContainer = document.getElementById('trader-positions-list');
+  const histContainer = document.getElementById('trader-history-list');
+
+  try {
+    const [openRes, closedRes] = await Promise.all([
+      fetch('/api/trader/positions?status=OPEN'),
+      fetch('/api/trader/positions?status=CLOSED'),
+    ]);
+
+    if (openRes.ok && posContainer) {
+      const positions = await openRes.json();
+      const posBadge = document.getElementById('badge-positions-count');
+      if (posBadge) posBadge.textContent = positions.length;
+
+      if (!positions || positions.length === 0) {
+        posContainer.innerHTML = `
+          <div style="font-size:11.5px;color:var(--text-mute);text-align:center;padding:24px 12px;background:var(--bg);border-radius:6px;border:1px dashed var(--border)">
+            <div>No open positions currently active.</div>
+            <div style="font-size:10px;margin-top:2px">Simulated fills will track live quote drift and automated Take-Profit exits here.</div>
+          </div>
+        `;
+      } else {
+        posContainer.innerHTML = `
+          <div style="display:grid;grid-template-columns:80px 75px 85px 85px 100px 100px 90px;font-size:9.5px;font-weight:700;color:var(--text-mute);text-transform:uppercase;padding:4px 12px;border-bottom:1px solid var(--border)">
+            <span>Ticker</span>
+            <span>Shares</span>
+            <span>Entry</span>
+            <span>Live Price</span>
+            <span>PnL ($ / %)</span>
+            <span>Target Exit</span>
+            <span style="text-align:right">Action</span>
+          </div>
+          ${positions.map(p => {
+            const isProfit = (p.unrealized_pnl || 0) >= 0;
+            const pnlFmt = (isProfit ? '+' : '') + '$' + Number(p.unrealized_pnl || 0).toFixed(2);
+            const pctFmt = (isProfit ? '+' : '') + Number(p.unrealized_pnl_pct || 0).toFixed(1) + '%';
+            return `
+              <div class="position-row" id="pos-row-${p.id}">
+                <span style="font-weight:700;color:var(--amber)">${esc(p.ticker)}</span>
+                <span>${p.shares}</span>
+                <span>$${p.entry_price}</span>
+                <span style="font-weight:600">${p.current_price ? '$' + p.current_price : '—'}</span>
+                <span>
+                  <span class="pnl-badge ${isProfit ? 'pnl-pos' : 'pnl-neg'}">
+                    ${pnlFmt} (${pctFmt})
+                  </span>
+                </span>
+                <span style="font-size:10.5px;color:var(--green)">$${p.take_profit_price || '—'}</span>
+                <span style="text-align:right">
+                  <button class="btn-close-pos" onclick="closePosition(${p.id})">Close</button>
+                </span>
+              </div>
+            `;
+          }).join('')}
+        `;
+      }
+    }
+
+    if (closedRes.ok && histContainer) {
+      const closed = await closedRes.json();
+      if (!closed || closed.length === 0) {
+        histContainer.innerHTML = '<div style="font-size:11px;color:var(--text-mute);text-align:center;padding:12px">No closed trades yet.</div>';
+      } else {
+        histContainer.innerHTML = closed.slice(0, 15).map(c => {
+          const isProfit = (c.realized_pnl || 0) >= 0;
+          return `
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 12px;border-bottom:1px solid var(--border-lt);font-size:11px;font-family:var(--mono)">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-weight:700;color:var(--text)">${esc(c.ticker)}</span>
+                <span style="color:var(--text-mute)">${c.shares} shs @ $${c.entry_price} ➔ $${c.exit_price}</span>
+                <span style="font-size:9.5px;padding:1px 4px;border-radius:3px;background:var(--border);color:var(--text-dim)">${c.exit_reason || 'CLOSED'}</span>
+              </div>
+              <span class="pnl-badge ${isProfit ? 'pnl-pos' : 'pnl-neg'}">
+                ${isProfit ? '+' : ''}$${Number(c.realized_pnl || 0).toFixed(2)} (${isProfit ? '+' : ''}${c.realized_pnl_pct || 0}%)
+              </span>
+            </div>
+          `;
+        }).join('');
+      }
+    }
+  } catch (err) {
+    console.error('Error fetching positions:', err);
+  }
+}
+
+async function closePosition(positionId) {
+  if (!confirm('Close this position immediately at current market price?')) return;
+  try {
+    const res = await fetch(`/api/trader/positions/${positionId}/close`, { method: 'POST' });
+    if (res.ok) {
+      showToast('Position closed at market price.', 'info');
+      await loadTraderDesk();
+    } else {
+      const err = await res.json();
+      showToast('Failed to close position: ' + (err.detail || 'Error'), 'error');
+    }
+  } catch (e) {
+    showToast('Error closing position', 'error');
+  }
+}
+
+async function fetchCompanyApprovals() {
+  const tbody = document.getElementById('trader-approval-tbody');
+  if (!tbody) return;
+
+  try {
+    const res = await fetch('/api/trader/approvals');
+    if (!res.ok) return;
+    _traderApprovals = await res.json();
+    renderCompanyApprovals(_traderApprovals);
+  } catch (err) {
+    console.error('Error fetching company approvals:', err);
+  }
+}
+
+function renderCompanyApprovals(list) {
+  const tbody = document.getElementById('trader-approval-tbody');
+  if (!tbody) return;
+
+  if (!list || list.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:16px;color:var(--text-mute)">No companies loaded.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = list.map(c => `
+    <tr>
+      <td>
+        <div style="font-weight:700;color:var(--amber);font-family:var(--mono)">${esc(c.ticker)}</div>
+        <div style="font-size:10px;color:var(--text-dim)">${esc(c.company_name || '')}</div>
+      </td>
+      <td style="font-family:var(--mono);font-size:11px">
+        ${c.market_cap ? fmtMoney(c.market_cap) : '—'}
+      </td>
+      <td style="text-align:center">
+        <label class="switch-ui" title="Approve company for Alpha Play detection">
+          <input type="checkbox" ${c.is_approved ? 'checked' : ''} onchange="toggleApproval('${esc(c.ticker)}', this.checked, ${c.auto_trade_enabled ? 1 : 0}, ${c.max_allocation || 1000})">
+          <span class="slider-ui"></span>
+        </label>
+      </td>
+      <td style="text-align:center">
+        <label class="switch-ui" title="Enable autonomous trading without 1-click manual approval">
+          <input type="checkbox" ${c.auto_trade_enabled ? 'checked' : ''} onchange="toggleAutoTrade('${esc(c.ticker)}', ${c.is_approved ? 1 : 0}, this.checked, ${c.max_allocation || 1000})">
+          <span class="slider-ui"></span>
+        </label>
+      </td>
+      <td style="text-align:right">
+        <div class="trader-cfg-input-wrap" style="width:70px">
+          <span>$</span>
+          <input type="number" value="${c.max_allocation || 1000}" onchange="saveAlloc('${esc(c.ticker)}', ${c.is_approved ? 1 : 0}, ${c.auto_trade_enabled ? 1 : 0}, this.value)" style="width:50px">
+        </div>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function filterCompanyApprovals() {
+  const q = (document.getElementById('trader-approval-search')?.value || '').toLowerCase();
+  const filtered = _traderApprovals.filter(c => 
+    c.ticker.toLowerCase().includes(q) || (c.company_name && c.company_name.toLowerCase().includes(q))
+  );
+  renderCompanyApprovals(filtered);
+}
+
+async function toggleApproval(ticker, isChecked, autoTrade, maxAlloc) {
+  const isApproved = isChecked ? 1 : 0;
+  const newAuto = isApproved ? autoTrade : 0;
+  try {
+    await fetch(`/api/trader/approvals/${encodeURIComponent(ticker)}?is_approved=${isApproved}&auto_trade_enabled=${newAuto}&max_allocation=${maxAlloc}`, { method: 'POST' });
+    showToast(`${ticker} approval ${isApproved ? 'ENABLED' : 'DISABLED'}`, 'info');
+    fetchCompanyApprovals();
+  } catch (e) {
+    showToast('Failed to update approval', 'error');
+  }
+}
+
+async function toggleAutoTrade(ticker, isApproved, isChecked, maxAlloc) {
+  const autoTrade = isChecked ? 1 : 0;
+  const newAppr = autoTrade ? 1 : isApproved;
+  try {
+    await fetch(`/api/trader/approvals/${encodeURIComponent(ticker)}?is_approved=${newAppr}&auto_trade_enabled=${autoTrade}&max_allocation=${maxAlloc}`, { method: 'POST' });
+    showToast(`${ticker} autonomous auto-trade ${autoTrade ? 'ACTIVE' : 'OFF'}`, autoTrade ? 'success' : 'info');
+    fetchCompanyApprovals();
+  } catch (e) {
+    showToast('Failed to update auto-trade', 'error');
+  }
+}
+
+async function saveAlloc(ticker, isApproved, autoTrade, val) {
+  const alloc = parseFloat(val) || 1000;
+  try {
+    await fetch(`/api/trader/approvals/${encodeURIComponent(ticker)}?is_approved=${isApproved}&auto_trade_enabled=${autoTrade}&max_allocation=${alloc}`, { method: 'POST' });
+    showToast(`${ticker} max allocation updated to $${alloc}`, 'success');
+  } catch (e) {
+    showToast('Failed to update allocation', 'error');
+  }
+}
+
+async function stageTradeFromCatalyst(awardId, ticker) {
+  try {
+    showToast(`Staging Alpha Play for ${ticker}…`, 'info');
+    const res = await fetch(`/api/trader/stage_catalyst/${awardId}`, { method: 'POST' });
+    if (res.ok) {
+      const order = await res.json();
+      showToast(`Alpha Play staged for ${ticker}! (${order.status})`, 'success');
+      fetchTraderStatus();
+      switchPage('trader');
+    } else {
+      const err = await res.json();
+      showToast('Staging note: ' + (err.detail || 'Already staged or non-qualifying'), 'info');
+      switchPage('trader');
+    }
+  } catch (e) {
+    showToast('Failed to stage trade', 'error');
+  }
 }
 
 // ── Retail Alpha Feed Engine ────────────────────────────────
@@ -2175,6 +3125,9 @@ function renderRetailCards(list) {
               <a href="${secUrl}" target="_blank" rel="noopener" class="cat-trade-link" title="Open SEC EDGAR Filings">
                 🏛 SEC
               </a>
+              <button onclick="stageTradeFromCatalyst(${c.award_id}, '${esc(c.ticker)}')" class="cat-trade-link" style="background:var(--green-glow);color:var(--green);border-color:rgba(16,185,129,0.35);cursor:pointer;font-weight:700" title="Stage order in Auto-Trader Desk">
+                ⚡ Trade Play
+              </button>
             </div>
           </div>
 
@@ -3343,16 +4296,18 @@ window.addEventListener('keydown', (e) => {
   } else if (e.key === '1') {
     switchPage('retail');
   } else if (e.key === '2') {
-    switchPage('alerts');
+    switchPage('trader');
   } else if (e.key === '3') {
-    switchPage('contracts');
+    switchPage('alerts');
   } else if (e.key === '4') {
-    switchPage('unresolved');
+    switchPage('contracts');
   } else if (e.key === '5') {
-    switchPage('companies');
+    switchPage('unresolved');
   } else if (e.key === '6') {
-    switchPage('analytics');
+    switchPage('companies');
   } else if (e.key === '7') {
+    switchPage('analytics');
+  } else if (e.key === '8') {
     switchPage('sources');
   } else if (e.key === 'r' || e.key === 'R') {
     refreshAll();
