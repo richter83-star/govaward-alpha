@@ -611,7 +611,7 @@ def update_trade_config(conn: sqlite3.Connection, **kwargs) -> dict[str, Any]:
     return get_trade_config(conn)
 
 
-def get_company_approvals(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+def get_company_approvals(conn: sqlite3.Connection, max_market_cap: float = 10_000_000_000.0) -> list[dict[str, Any]]:
     rows = conn.execute("""
         SELECT COALESCE(co.ticker, ca.ticker) as ticker,
                COALESCE(co.company_name, ca.company_name, '') as company_name,
@@ -623,6 +623,7 @@ def get_company_approvals(conn: sqlite3.Connection) -> list[dict[str, Any]]:
                ca.updated_at
         FROM companies co
         LEFT JOIN company_trade_approvals ca ON co.ticker = ca.ticker
+        WHERE (co.market_cap IS NULL OR co.market_cap <= ?)
         UNION
         SELECT ca.ticker,
                COALESCE(co.company_name, ca.company_name, '') as company_name,
@@ -634,8 +635,9 @@ def get_company_approvals(conn: sqlite3.Connection) -> list[dict[str, Any]]:
                ca.updated_at
         FROM company_trade_approvals ca
         LEFT JOIN companies co ON ca.ticker = co.ticker
+        WHERE (co.market_cap IS NULL OR co.market_cap <= ?)
         ORDER BY market_cap DESC NULLS LAST
-    """).fetchall()
+    """, (max_market_cap, max_market_cap)).fetchall()
     return [dict(r) for r in rows]
 
 
