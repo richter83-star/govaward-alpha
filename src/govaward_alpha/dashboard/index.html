@@ -979,8 +979,443 @@
 
     .chevron { display: inline-block; transition: transform .2s; color: var(--text-mute); font-size: 10px; margin-left: 3px; }
     .expanded .chevron { transform: rotate(90deg); }
-    a { color: var(--amber); text-decoration: none; }
-    a:hover { text-decoration: underline; }
+    /* ── Retail Alpha Mode Styles ────────────────────────── */
+    .mode-toggle-group {
+      display: inline-flex;
+      align-items: center;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-lt);
+      border-radius: 20px;
+      padding: 2px;
+      gap: 2px;
+    }
+    .mode-toggle-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 16px;
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--text-dim);
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      transition: all .15s ease;
+    }
+    .mode-toggle-btn.active {
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.25) 0%, rgba(249, 115, 22, 0.25) 100%);
+      color: var(--amber-light);
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      box-shadow: 0 0 12px rgba(245, 158, 11, 0.2);
+    }
+    .mode-toggle-btn:hover:not(.active) {
+      color: var(--text);
+      background: var(--bg-hover);
+    }
+
+    .nav-badge-fire {
+      background: linear-gradient(135deg, #f59e0b, #ef4444) !important;
+      color: #fff !important;
+      font-weight: 800 !important;
+      box-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
+    }
+
+    /* Retail Alpha Banner */
+    .retail-hero-banner {
+      background: linear-gradient(135deg, rgba(14, 16, 23, 0.95) 0%, rgba(26, 32, 48, 0.9) 100%);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      border-radius: var(--radius);
+      padding: 10px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+      position: relative;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .retail-hero-banner::after {
+      content: '';
+      position: absolute;
+      top: -40px; right: -40px;
+      width: 140px; height: 140px;
+      background: radial-gradient(circle, rgba(245, 158, 11, 0.15) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .retail-hero-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .retail-hero-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: .02em;
+    }
+    .retail-hero-subtitle {
+      font-size: 11.5px;
+      color: var(--text-dim);
+      line-height: 1.4;
+      margin-top: 2px;
+    }
+    .retail-metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+    .retail-metric-box {
+      background: rgba(7, 8, 11, 0.6);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 6px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .retail-metric-box:hover {
+      border-color: rgba(245, 158, 11, 0.35);
+    }
+    .retail-metric-label {
+      font-size: 9px;
+      font-weight: 700;
+      color: var(--text-mute);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .retail-metric-val {
+      font-size: 15px;
+      font-weight: 700;
+      font-family: var(--mono);
+      color: var(--text);
+    }
+    .retail-metric-sub {
+      font-size: 9.5px;
+      color: var(--text-dim);
+      font-family: var(--mono);
+    }
+
+    /* Retail Filters Bar */
+    .retail-filter-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 6px 10px;
+      flex-wrap: wrap;
+      flex-shrink: 0;
+    }
+    .retail-filter-group {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .retail-filter-btn {
+      padding: 3px 8px;
+      font-size: 10.5px;
+      font-weight: 600;
+      color: var(--text-dim);
+      background: var(--bg);
+      border: 1px solid var(--border-lt);
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all .12s;
+    }
+    .retail-filter-btn:hover {
+      color: var(--text);
+      border-color: var(--amber);
+    }
+    .retail-filter-btn.active {
+      background: var(--amber-glow);
+      color: var(--amber);
+      border-color: rgba(245, 158, 11, 0.45);
+    }
+
+    /* Catalyst Cards Stream */
+    .catalyst-cards-wrap {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding-right: 4px;
+    }
+    .catalyst-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+      transition: transform .12s ease, border-color .12s ease, box-shadow .12s ease;
+      position: relative;
+    }
+    .catalyst-card:hover {
+      border-color: rgba(245, 158, 11, 0.4);
+      box-shadow: 0 6px 24px rgba(245, 158, 11, 0.08);
+      transform: translateY(-1px);
+    }
+    .catalyst-card.high-conviction {
+      border-left: 4px solid var(--green);
+    }
+    .catalyst-card.momentum-watch {
+      border-left: 4px solid var(--amber);
+    }
+    .catalyst-card.trap-avoid {
+      border-left: 4px solid var(--red);
+    }
+
+    /* Card Header */
+    .cat-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .cat-ticker-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .cat-ticker-pill {
+      font-size: 18px;
+      font-weight: 800;
+      font-family: var(--mono);
+      color: var(--amber-light);
+      background: rgba(245, 158, 11, 0.12);
+      border: 1px solid rgba(245, 158, 11, 0.35);
+      padding: 2px 8px;
+      border-radius: 6px;
+      letter-spacing: .05em;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+    }
+    .cat-ticker-pill:hover {
+      background: rgba(245, 158, 11, 0.22);
+      box-shadow: 0 0 10px rgba(245, 158, 11, 0.25);
+    }
+    .cat-co-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: #fff;
+    }
+    .cat-co-sector {
+      font-size: 10.5px;
+      color: var(--text-dim);
+      background: var(--bg-elevated);
+      padding: 1px 6px;
+      border-radius: 3px;
+      border: 1px solid var(--border);
+    }
+    .cat-trade-links {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      margin-left: 4px;
+    }
+    .cat-trade-link {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 4px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-lt);
+      color: var(--text-dim);
+      text-decoration: none !important;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      transition: all .12s;
+    }
+    .cat-trade-link:hover {
+      color: var(--amber);
+      border-color: var(--amber);
+      background: var(--bg-hover);
+    }
+
+    /* Financial Scale & Impact Pill */
+    .cat-impact-box {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .alpha-ratio-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 800;
+      font-family: var(--mono);
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.25) 0%, rgba(239, 68, 68, 0.25) 100%);
+      border: 1px solid rgba(245, 158, 11, 0.5);
+      color: #fff;
+      box-shadow: 0 0 14px rgba(245, 158, 11, 0.25);
+    }
+    .cat-financial-stats {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--mono);
+      font-size: 11px;
+    }
+    .cat-stat-item {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+    }
+    .cat-stat-lbl {
+      font-size: 8.5px;
+      color: var(--text-mute);
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+    .cat-stat-val {
+      font-weight: 700;
+      color: var(--text);
+    }
+    .cat-stat-val.positive {
+      color: var(--green);
+    }
+
+    /* Headline */
+    .cat-headline {
+      font-size: 13.5px;
+      font-weight: 600;
+      color: #f8fafc;
+      line-height: 1.4;
+    }
+
+    /* Gemini Trading Strategy Box */
+    .cat-ai-box {
+      background: linear-gradient(135deg, rgba(16, 20, 32, 0.95) 0%, rgba(20, 24, 38, 0.85) 100%);
+      border: 1px solid rgba(6, 182, 212, 0.25);
+      border-radius: 6px;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      position: relative;
+    }
+    .cat-ai-box::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(6, 182, 212, 0.5), transparent);
+    }
+    .cat-ai-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .cat-ai-title {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--cyan);
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+    .verdict-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 10.5px;
+      font-weight: 800;
+      font-family: var(--mono);
+      letter-spacing: .04em;
+    }
+    .verdict-BUY {
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--green);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
+    }
+    .verdict-WATCH {
+      background: rgba(245, 158, 11, 0.15);
+      color: var(--amber);
+      border: 1px solid rgba(245, 158, 11, 0.4);
+    }
+    .verdict-TRAP {
+      background: rgba(244, 63, 94, 0.15);
+      color: var(--red);
+      border: 1px solid rgba(244, 63, 94, 0.4);
+    }
+
+    .cat-ai-section {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      font-size: 11.5px;
+      line-height: 1.45;
+    }
+    .cat-ai-lbl {
+      font-size: 9.5px;
+      font-weight: 700;
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+    .cat-ai-text {
+      color: #e2e8f0;
+    }
+    .cat-ai-trap {
+      background: rgba(0, 0, 0, 0.25);
+      border-left: 2px solid var(--amber);
+      padding: 4px 8px;
+      border-radius: 0 4px 4px 0;
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+
+    /* Contract Proof Footer */
+    .cat-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 10.5px;
+      color: var(--text-mute);
+      padding-top: 4px;
+      border-top: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+    .cat-footer-meta {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .cat-meta-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
   </style>
 </head>
 <body>
@@ -1000,9 +1435,18 @@
       <span id="last-refresh-label">—</span>
     </div>
 
+    <div class="mode-toggle-group">
+      <button class="mode-toggle-btn active" id="btn-mode-retail" onclick="setAppMode('retail')">
+        <span>🔥</span> 🎯 Retail Alpha Radar
+      </button>
+      <button class="mode-toggle-btn" id="btn-mode-terminal" onclick="setAppMode('terminal')">
+        <span>⚙</span> Terminal Mode
+      </button>
+    </div>
+
     <div class="shortcut-hint" onclick="focusSearch()" title="Click to focus search or press /">
       <span class="kbd">/</span> Search
-      <span class="kbd">1–6</span> Tabs
+      <span class="kbd">1–7</span> Tabs
       <span class="kbd">R</span> Refresh
     </div>
 
@@ -1023,8 +1467,16 @@
 
   <!-- Sidebar -->
   <nav id="sidebar">
-    <div class="nav-label">Catalyst Pipeline</div>
-    <div class="nav-item active" data-page="alerts" onclick="navigate('alerts',this)">
+    <div class="nav-label" style="color:var(--amber-light);display:flex;align-items:center;gap:6px">
+      <span>🔥</span> High-Impact Alpha
+    </div>
+    <div class="nav-item active" data-page="retail" onclick="navigate('retail',this)">
+      <span class="nav-icon">🎯</span> Retail Alpha Feed
+      <span class="nav-badge nav-badge-fire" id="badge-retail">0</span>
+    </div>
+
+    <div class="nav-label" style="margin-top:12px">Procurement Pipeline</div>
+    <div class="nav-item" data-page="alerts" onclick="navigate('alerts',this)">
       <span class="nav-icon">◈</span> Alert Feed
       <span class="nav-badge" id="badge-alerts">0</span>
     </div>
@@ -1058,8 +1510,96 @@
   <!-- Main View -->
   <main id="main">
 
-    <!-- ── Page 1: Alert Feed ──────────────────────────── -->
-    <section class="page active" id="page-alerts">
+    <!-- ── Page 0: Retail Alpha Feed (Hero Small/Mid Cap $50M+ Catalyst Radar) ── -->
+    <section class="page active" id="page-retail">
+      <!-- Hero Banner & Executive Summary -->
+      <div class="retail-hero-banner">
+        <div class="retail-hero-top">
+          <div>
+            <div class="retail-hero-title">
+              <span>🎯</span> Small & Mid-Cap Government Catalyst Radar
+              <span class="alpha-ratio-badge" style="font-size:10px;padding:2px 8px">PRE-MARKET ASYMMETRY</span>
+            </div>
+            <div class="retail-hero-subtitle">
+              Filter out the procurement noise. Surfaces small to mid-cap companies ($50M–$10B market cap) winning massive federal contracts (≥$50M) before mainstream news outlets report them.
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <button class="btn-topbar" onclick="loadRetailCatalysts()" style="border-color:rgba(245,158,11,0.4);color:var(--amber)">
+              <span>↻</span> Refresh Alpha
+            </button>
+          </div>
+        </div>
+
+        <div class="retail-metrics-grid">
+          <div class="retail-metric-box">
+            <div class="retail-metric-label"><span>🔥</span> Mega-Catalysts (≥$50M)</div>
+            <div class="retail-metric-val" id="ret-stat-total">—</div>
+            <div class="retail-metric-sub">Small/mid cap focus</div>
+          </div>
+          <div class="retail-metric-box">
+            <div class="retail-metric-label"><span>⚡</span> Top Alpha Ratio</div>
+            <div class="retail-metric-val" id="ret-stat-top-ratio" style="color:var(--amber-light)">—</div>
+            <div class="retail-metric-sub" id="ret-stat-top-ticker">Award % of Market Cap</div>
+          </div>
+          <div class="retail-metric-box">
+            <div class="retail-metric-label"><span>🎯</span> Small/Mid Targets</div>
+            <div class="retail-metric-val" id="ret-stat-targets">—</div>
+            <div class="retail-metric-sub">$50M to $10B market cap</div>
+          </div>
+          <div class="retail-metric-box">
+            <div class="retail-metric-label"><span>🤖</span> AI Buy Conviction</div>
+            <div class="retail-metric-val" id="ret-stat-buys" style="color:var(--green)">—</div>
+            <div class="retail-metric-sub">Gemini tactical rating</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Retail Filter Ribbon -->
+      <div class="retail-filter-bar">
+        <div class="retail-filter-group">
+          <span class="filter-label">Recency:</span>
+          <button class="retail-filter-btn" data-ret-fresh="today" onclick="setRetailFreshness('today')">Today</button>
+          <button class="retail-filter-btn" data-ret-fresh="3d" onclick="setRetailFreshness('3d')">Last 3 Days</button>
+          <button class="retail-filter-btn" data-ret-fresh="7d" onclick="setRetailFreshness('7d')">Last 7 Days</button>
+          <button class="retail-filter-btn active" data-ret-fresh="all" onclick="setRetailFreshness('all')">All Recent</button>
+        </div>
+
+        <div style="width:1px;height:18px;background:var(--border-lt);margin:0 4px"></div>
+
+        <div class="retail-filter-group">
+          <span class="filter-label">Min Contract:</span>
+          <button class="retail-filter-btn active" data-ret-amt="50000000" onclick="setRetailMinAmount(50000000)">≥ $50M</button>
+          <button class="retail-filter-btn" data-ret-amt="100000000" onclick="setRetailMinAmount(100000000)">≥ $100M</button>
+          <button class="retail-filter-btn" data-ret-amt="250000000" onclick="setRetailMinAmount(250000000)">≥ $250M</button>
+          <button class="retail-filter-btn" data-ret-amt="500000000" onclick="setRetailMinAmount(500000000)">≥ $500M</button>
+        </div>
+
+        <div style="width:1px;height:18px;background:var(--border-lt);margin:0 4px"></div>
+
+        <div class="retail-filter-group">
+          <span class="filter-label">Market Cap:</span>
+          <button class="retail-filter-btn active" data-ret-cap="all" onclick="setRetailCapRange('all')">All SMID ($50M-$10B)</button>
+          <button class="retail-filter-btn" data-ret-cap="small" onclick="setRetailCapRange('small')">Small-Cap ($50M-$2B)</button>
+          <button class="retail-filter-btn" data-ret-cap="mid" onclick="setRetailCapRange('mid')">Mid-Cap ($2B-$10B)</button>
+        </div>
+
+        <div style="width:1px;height:18px;background:var(--border-lt);margin:0 4px"></div>
+
+        <div class="search-wrap" style="flex:1;min-width:160px">
+          <span class="search-icon">🔍</span>
+          <input class="filter-input" type="text" id="ret-search" placeholder="Search ticker, company or agency…" oninput="filterRetailCardsLocally()" style="width:100%">
+        </div>
+      </div>
+
+      <!-- Catalyst Cards Stream -->
+      <div class="catalyst-cards-wrap" id="retail-cards-container">
+        <div class="loading"><div class="spinner"></div> Scanning for Small/Mid-Cap $50M+ Catalysts…</div>
+      </div>
+    </section>
+
+    <!-- ── Page 1: Alert Feed (Terminal Mode) ──────────────────────────── -->
+    <section class="page" id="page-alerts">
       <div class="stats-strip" id="stats-strip">
         <div class="loading"><div class="spinner"></div> Loading telemetry…</div>
       </div>
@@ -1422,7 +1962,25 @@ function copyText(text, label = 'Text') {
   });
 }
 
-// ── Navigation ────────────────────────────────────────────
+// ── Navigation & App Mode ──────────────────────────────────
+
+let _currentAppMode = 'retail';
+
+function setAppMode(mode, doNavigate = true) {
+  _currentAppMode = mode;
+  const btnRetail = document.getElementById('btn-mode-retail');
+  const btnTerm = document.getElementById('btn-mode-terminal');
+  if (btnRetail) btnRetail.classList.toggle('active', mode === 'retail');
+  if (btnTerm) btnTerm.classList.toggle('active', mode === 'terminal');
+
+  if (doNavigate) {
+    if (mode === 'retail') {
+      switchPage('retail');
+    } else {
+      switchPage('alerts');
+    }
+  }
+}
 
 function switchPage(pageId) {
   const el = document.querySelector(`.nav-item[data-page="${pageId}"]`);
@@ -1433,13 +1991,266 @@ function navigate(pageId, el) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   el.classList.add('active');
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.getElementById('page-' + pageId).classList.add('active');
+  const targetPage = document.getElementById('page-' + pageId);
+  if (targetPage) targetPage.classList.add('active');
+
+  if (pageId === 'retail') {
+    setAppMode('retail', false);
+    loadRetailCatalysts();
+  } else {
+    setAppMode('terminal', false);
+  }
 
   if (pageId === 'contracts')   loadAllContracts();
   if (pageId === 'unresolved')  loadUnresolved();
   if (pageId === 'analytics')   loadCharts();
   if (pageId === 'sources')     loadSources();
   if (pageId === 'companies')   loadCompanies();
+}
+
+// ── Retail Alpha Feed Engine ────────────────────────────────
+let _retailCatalysts = [];
+let _retFreshness = 'all';
+let _retMinAmount = 50000000;
+let _retCapRange = 'all'; // 'all', 'small', 'mid'
+
+async function loadRetailCatalysts() {
+  const container = document.getElementById('retail-cards-container');
+  if (!container) return;
+
+  let minCap = 50000000;
+  let maxCap = 10000000000;
+  if (_retCapRange === 'small') {
+    maxCap = 2000000000;
+  } else if (_retCapRange === 'mid') {
+    minCap = 2000000000;
+  }
+
+  const queryParams = new URLSearchParams({
+    freshness: _retFreshness,
+    min_amount: _retMinAmount,
+    min_market_cap: minCap,
+    max_market_cap: maxCap,
+    limit: 100
+  });
+
+  try {
+    const res = await fetch('/api/catalysts?' + queryParams.toString());
+    const data = await res.json();
+    _retailCatalysts = data.catalysts || [];
+    const summary = data.summary || {};
+
+    // Update hero stats
+    const elTotal = document.getElementById('ret-stat-total');
+    if (elTotal) elTotal.textContent = `${summary.total_catalysts || 0} Deals`;
+
+    const elTopRatio = document.getElementById('ret-stat-top-ratio');
+    if (elTopRatio) elTopRatio.textContent = summary.top_ratio_pct ? `${summary.top_ratio_pct}%` : '—';
+
+    const elTopTicker = document.getElementById('ret-stat-top-ticker');
+    if (elTopTicker) elTopTicker.textContent = summary.top_ticker ? `${summary.top_ticker} Top Impact` : 'Award % of Market Cap';
+    
+    // Calculate unique target companies
+    const uniqueTargets = new Set(_retailCatalysts.map(c => c.ticker)).size;
+    const elTargets = document.getElementById('ret-stat-targets');
+    if (elTargets) elTargets.textContent = `${uniqueTargets} Companies`;
+
+    const elBuys = document.getElementById('ret-stat-buys');
+    if (elBuys) elBuys.textContent = `${summary.buy_signals || 0} Signals`;
+
+    // Update sidebar badge
+    const badgeRetail = document.getElementById('badge-retail');
+    if (badgeRetail) badgeRetail.textContent = summary.total_catalysts || 0;
+
+    renderRetailCards(_retailCatalysts);
+  } catch (err) {
+    container.innerHTML = `<div class="empty">Failed to load retail alpha catalysts: ${esc(err.message)}</div>`;
+  }
+}
+
+function setRetailFreshness(fresh) {
+  _retFreshness = fresh;
+  document.querySelectorAll('[data-ret-fresh]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.retFresh === fresh);
+  });
+  loadRetailCatalysts();
+}
+
+function setRetailMinAmount(amt) {
+  _retMinAmount = amt;
+  document.querySelectorAll('[data-ret-amt]').forEach(btn => {
+    btn.classList.toggle('active', parseInt(btn.dataset.retAmt) === amt);
+  });
+  loadRetailCatalysts();
+}
+
+function setRetailCapRange(range) {
+  _retCapRange = range;
+  document.querySelectorAll('[data-ret-cap]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.retCap === range);
+  });
+  loadRetailCatalysts();
+}
+
+function filterRetailCardsLocally() {
+  const q = (document.getElementById('ret-search')?.value || '').trim().toLowerCase();
+  if (!q) {
+    renderRetailCards(_retailCatalysts);
+    return;
+  }
+  const filtered = _retailCatalysts.filter(c => {
+    return (c.ticker || '').toLowerCase().includes(q) ||
+           (c.company_name || '').toLowerCase().includes(q) ||
+           (c.awardee_name_raw || '').toLowerCase().includes(q) ||
+           (c.agency || '').toLowerCase().includes(q) ||
+           (c.description || '').toLowerCase().includes(q);
+  });
+  renderRetailCards(filtered);
+}
+
+function renderRetailCards(list) {
+  const container = document.getElementById('retail-cards-container');
+  if (!container) return;
+
+  if (!list || list.length === 0) {
+    container.innerHTML = `
+      <div class="empty" style="padding:48px 20px;text-align:center">
+        <div style="font-size:32px;margin-bottom:8px">🔍</div>
+        <div style="font-size:14px;font-weight:700;color:var(--text)">No Mega-Catalysts Found Matching Filters</div>
+        <div style="font-size:12px;color:var(--text-mute);margin-top:4px">Try expanding recency to 'All Recent' or lowering the minimum award threshold.</div>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = list.map((c, idx) => {
+    const ai = c.gemini_strategy || {};
+    const verdict = ai.action_verdict || 'MOMENTUM WATCH';
+    
+    let cardClass = 'momentum-watch';
+    let verdictClass = 'verdict-WATCH';
+    let verdictIcon = '🟡';
+    if (verdict === 'HIGH CONVICTION BUY') {
+      cardClass = 'high-conviction';
+      verdictClass = 'verdict-BUY';
+      verdictIcon = '🟢';
+    } else if (verdict === 'TRAP / AVOID') {
+      cardClass = 'trap-avoid';
+      verdictClass = 'verdict-TRAP';
+      verdictIcon = '🔴';
+    }
+
+    const amtFmt = fmtMoney(c.award_amount || c.obligated_amount || 0);
+    const capFmt = fmtMoney(c.market_cap || 0);
+    const revFmt = c.trailing_revenue ? fmtMoney(c.trailing_revenue) : '—';
+    const ratioVal = c.ratio_pct || ((c.award_amount / (c.market_cap || 1)) * 100).toFixed(1);
+
+    const yahooUrl = `https://finance.yahoo.com/quote/${encodeURIComponent(c.ticker)}`;
+    const tvUrl = `https://www.tradingview.com/symbols/${encodeURIComponent(c.ticker)}`;
+    const secUrl = `https://www.sec.gov/edgar/searchedgar/companysearch?companyName=${encodeURIComponent(c.ticker)}`;
+
+    return `
+      <div class="catalyst-card ${cardClass}" id="cat-card-${c.award_id}">
+        <!-- Top Row: Ticker, Trade Links, Financial Scale -->
+        <div class="cat-header">
+          <div class="cat-ticker-group">
+            <span class="cat-ticker-pill" onclick="copyText('${esc(c.ticker)}', 'Ticker')" title="Click to copy ticker">
+              ${esc(c.ticker)} <span style="font-size:11px;opacity:0.6">📋</span>
+            </span>
+            <div>
+              <div class="cat-co-name">${esc(c.company_name || c.awardee_name_raw)}</div>
+              <div style="display:flex;align-items:center;gap:6px;margin-top:2px">
+                <span class="cat-co-sector">${esc(c.sector || 'Small/Mid Cap')}</span>
+                <span style="font-size:10px;color:var(--text-mute)">• Ranked #${idx + 1} Impact</span>
+              </div>
+            </div>
+            <div class="cat-trade-links">
+              <a href="${yahooUrl}" target="_blank" rel="noopener" class="cat-trade-link" title="Open in Yahoo Finance">
+                📈 Yahoo
+              </a>
+              <a href="${tvUrl}" target="_blank" rel="noopener" class="cat-trade-link" title="Open in TradingView Chart">
+                📊 Chart
+              </a>
+              <a href="${secUrl}" target="_blank" rel="noopener" class="cat-trade-link" title="Open SEC EDGAR Filings">
+                🏛 SEC
+              </a>
+            </div>
+          </div>
+
+          <div class="cat-impact-box">
+            <div class="cat-financial-stats">
+              <div class="cat-stat-item">
+                <span class="cat-stat-lbl">Contract Award</span>
+                <span class="cat-stat-val positive">+${amtFmt}</span>
+              </div>
+              <div class="cat-stat-item">
+                <span class="cat-stat-lbl">Market Cap</span>
+                <span class="cat-stat-val">${capFmt}</span>
+              </div>
+              <div class="cat-stat-item">
+                <span class="cat-stat-lbl">Trailing Rev</span>
+                <span class="cat-stat-val">${revFmt}</span>
+              </div>
+            </div>
+
+            <div class="alpha-ratio-badge" title="Contract amount as percentage of company's total market value">
+              🔥 ${ratioVal}% OF MARKET CAP
+            </div>
+          </div>
+        </div>
+
+        <!-- Headline -->
+        <div class="cat-headline">
+          ${esc(ai.headline || `${c.ticker} secures ${amtFmt} award from ${c.agency} (${ratioVal}% of market cap)`)}
+        </div>
+
+        <!-- Gemini AI Trading Strategy Engine Box -->
+        <div class="cat-ai-box">
+          <div class="cat-ai-header">
+            <div class="cat-ai-title">
+              <span>✦</span> Gemini AI Trading Strategy
+            </div>
+            <div class="verdict-badge ${verdictClass}">
+              <span>${verdictIcon}</span> ${verdict}
+            </div>
+          </div>
+
+          <div class="cat-ai-section">
+            <div class="cat-ai-lbl">🎯 Tactical Gameplan</div>
+            <div class="cat-ai-text" style="font-weight:500;color:#f1f5f9">
+              ${esc(ai.trade_strategy || 'Monitor pre-market order flow and opening volume surge for entry.')}
+            </div>
+          </div>
+
+          <div class="cat-ai-section">
+            <div class="cat-ai-lbl">💡 Asymmetric Edge & Thesis</div>
+            <div class="cat-ai-text" style="color:var(--text-dim)">
+              ${esc(ai.retail_thesis || ai.materiality_narrative || 'Contract represents significant new cash flow that retail algorithms lag in pricing.')}
+            </div>
+          </div>
+
+          <div class="cat-ai-section">
+            <div class="cat-ai-trap">
+              <span style="font-weight:700;color:var(--amber);margin-right:4px">🛡 Trap Check:</span>
+              ${esc(ai.trap_check || ai.quality_note || 'Verified government contract record.')}
+            </div>
+          </div>
+        </div>
+
+        <!-- Plain English Contract Verification Footer -->
+        <div class="cat-footer">
+          <div class="cat-footer-meta">
+            <span class="cat-meta-tag">🏛 <strong>Agency:</strong> ${esc(c.agency || 'Federal Agency')}</span>
+            <span class="cat-meta-tag">📅 <strong>Posted:</strong> ${esc(c.posted_date || c.award_date || 'Recent')}</span>
+            <span class="cat-meta-tag">📋 <strong>Scope:</strong> ${esc((c.description || 'Defense / Federal mission requirement').slice(0, 85))}${c.description && c.description.length > 85 ? '…' : ''}</span>
+          </div>
+          <div>
+            ${c.source_url ? `<a href="${esc(c.source_url)}" target="_blank" rel="noopener" style="font-size:10.5px;color:var(--amber)">View Federal Record ↗</a>` : `<span style="color:var(--text-mute)">Source: ${esc(c.source || 'govaward')}</span>`}
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
 }
 
 function focusSearch() {
@@ -1739,7 +2550,10 @@ async function refreshAll() {
   renderStats(_stats);
   refreshGeminiButton();
   if (filterOpts) populateFilterDropdowns(filterOpts);
-  await applyFilters();
+  await Promise.all([
+    loadRetailCatalysts(),
+    applyFilters()
+  ]);
 
   document.getElementById('last-refresh-label').textContent =
     'Synced ' + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
@@ -2526,16 +3340,18 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
     focusSearch();
   } else if (e.key === '1') {
-    switchPage('alerts');
+    switchPage('retail');
   } else if (e.key === '2') {
-    switchPage('contracts');
+    switchPage('alerts');
   } else if (e.key === '3') {
-    switchPage('unresolved');
+    switchPage('contracts');
   } else if (e.key === '4') {
-    switchPage('companies');
+    switchPage('unresolved');
   } else if (e.key === '5') {
-    switchPage('analytics');
+    switchPage('companies');
   } else if (e.key === '6') {
+    switchPage('analytics');
+  } else if (e.key === '7') {
     switchPage('sources');
   } else if (e.key === 'r' || e.key === 'R') {
     refreshAll();

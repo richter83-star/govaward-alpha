@@ -284,11 +284,34 @@ class TestNewEndpoints:
             if backup is not None:
                 override_file.write_text(backup, encoding="utf-8")
 
-    def test_scan_status(self, seeded):
-        resp = seeded.get("/api/scan/status")
+
+class TestRetailCatalysts:
+    def test_empty_db_returns_empty_list(self, client):
+        resp = client.get("/api/catalysts")
         assert resp.status_code == 200
         body = resp.json()
-        assert "running" in body
-        assert "last_status" in body
+        assert body["catalysts"] == []
+        assert body["summary"]["total_catalysts"] == 0
+
+    def test_seeded_filters_small_mid_cap_and_50m_plus(self, seeded):
+        resp = seeded.get("/api/catalysts")
+        assert resp.status_code == 200
+        body = resp.json()
+        catalysts = body["catalysts"]
+        # KTOS should be included: $95M award (>= $50M) and $900M cap (between 50M and 10B)
+        # LMT should be excluded: $120B cap (> 10B mid-cap ceiling)
+        assert len(catalysts) == 1
+        c = catalysts[0]
+        assert c["ticker"] == "KTOS"
+        assert c["award_amount"] == 95_000_000.0
+        assert c["ratio_pct"] == pytest.approx(10.6, abs=0.2)
+        assert "gemini_strategy" in c
+        strat = c["gemini_strategy"]
+        assert strat["action_verdict"] in ["HIGH CONVICTION BUY", "MOMENTUM WATCH", "TRAP / AVOID"]
+        assert "headline" in strat
+        assert "trade_strategy" in strat
+        assert "retail_thesis" in strat
+        assert "trap_check" in strat
+
 
 

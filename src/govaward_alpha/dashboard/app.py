@@ -257,6 +257,136 @@ def list_alerts(
         conn.close()
 
 
+@app.get("/api/catalysts")
+def get_retail_catalysts(
+    min_amount: float = Query(50_000_000, description="Minimum contract award amount"),
+    min_market_cap: float = Query(50_000_000, description="Minimum company market cap"),
+    max_market_cap: float = Query(10_000_000_000, description="Maximum company market cap (small/mid cap cap)"),
+    freshness: str = Query("all", description="today, 3d, 7d, all"),
+    limit: int = Query(50, ge=1, le=200),
+) -> dict[str, Any]:
+    """Retail Catalyst endpoint: filters exclusively for Small/Mid-Cap $50M+ awards
+    with actionable Gemini trade strategies and front-running advice."""
+    from govaward_alpha.enrich.gemini_enricher import synthesize_retail_strategy
+    from govaward_alpha.models import Award, Company
+
+    conn = _db()
+    try:
+        where = [
+            "aw.ticker IS NOT NULL",
+            "aw.ticker != ''",
+            "aw.ticker != 'UNRESOLVED'",
+            "COALESCE(aw.award_amount, aw.obligated_amount, 0) >= ?",
+            "co.market_cap IS NOT NULL",
+            "co.market_cap BETWEEN ? AND ?",
+        ]
+        params: list[Any] = [min_amount, min_market_cap, max_market_cap]
+
+        if freshness == "today":
+            where.append("aw.posted_date >= date('now', '-1 day')")
+        elif freshness == "3d":
+            where.append("aw.posted_date >= date('now', '-3 days')")
+        elif freshness == "7d":
+            where.append("aw.posted_date >= date('now', '-7 days')")
+
+        sql = f"""
+            SELECT
+                aw.id as award_id,
+                aw.ticker,
+                aw.awardee_name_raw,
+                aw.award_amount,
+                aw.obligated_amount,
+                aw.agency,
+                aw.posted_date,
+                aw.award_date,
+                aw.description,
+                aw.source,
+                aw.source_url,
+                aw.is_idiq,
+                aw.is_modification,
+                aw.is_ceiling_only,
+                aw.materiality_score,
+                aw.alert_level,
+                co.company_name,
+                co.market_cap,
+                co.trailing_revenue,
+                co.sector,
+                al.id as alert_id,
+                al.gemini_analysis_json,
+                al.claude_analysis_json
+            FROM awards aw
+            JOIN companies co ON aw.ticker = co.ticker
+            LEFT JOIN alerts al ON aw.id = al.award_id
+            WHERE {" AND ".join(where)}
+            ORDER BY (COALESCE(aw.award_amount, aw.obligated_amount, 0) / co.market_cap) DESC, aw.award_amount DESC
+            LIMIT ?
+        """
+        params.append(limit)
+        rows = conn.execute(sql, params).fetchall()
+
+        catalysts = []
+        buy_signals = 0
+        top_ratio = 0.0
+
+        for r in rows:
+            row_dict = dict(r)
+            amt = row_dict["award_amount"] or row_dict["obligated_amount"] or 0
+            cap = row_dict["market_cap"] or 1
+            ratio = amt / cap
+            ratio_pct = round(ratio * 100.0, 1)
+            row_dict["ratio_pct"] = ratio_pct
+            if ratio_pct > top_ratio:
+                top_ratio = ratio_pct
+
+            # Check if Gemini analysis is already attached
+            ai_raw = row_dict.get("gemini_analysis_json") or row_dict.get("claude_analysis_json") or ""
+            ai_data = json.loads(ai_raw) if ai_raw else None
+
+            # If missing or lacking action_verdict, synthesize actionable strategy
+            if not ai_data or "action_verdict" not in ai_data:
+                dummy_aw = Award(
+                    source=row_dict["source"] or "defense_daily",
+                    source_award_id=str(row_dict["award_id"]),
+                    ticker=row_dict["ticker"],
+                    awardee_name_raw=row_dict["awardee_name_raw"] or "",
+                    award_amount=amt,
+                    obligated_amount=row_dict["obligated_amount"],
+                    agency=row_dict["agency"] or "",
+                    posted_date=None,
+                    description=row_dict["description"] or "",
+                    is_idiq=bool(row_dict["is_idiq"]),
+                    is_ceiling_only=bool(row_dict["is_ceiling_only"]),
+                    is_modification=bool(row_dict["is_modification"]),
+                )
+                dummy_co = Company(
+                    ticker=row_dict["ticker"],
+                    company_name=row_dict["company_name"] or "",
+                    market_cap=row_dict["market_cap"],
+                    trailing_revenue=row_dict["trailing_revenue"],
+                    sector=row_dict["sector"] or "",
+                )
+                ai_data = synthesize_retail_strategy(dummy_aw, dummy_co)
+
+            row_dict["gemini_strategy"] = ai_data
+            if ai_data.get("action_verdict") == "HIGH CONVICTION BUY":
+                buy_signals += 1
+
+            catalysts.append(row_dict)
+
+        return {
+            "catalysts": catalysts,
+            "summary": {
+                "total_catalysts": len(catalysts),
+                "top_ratio_pct": top_ratio,
+                "top_ticker": catalysts[0]["ticker"] if catalysts else None,
+                "buy_signals": buy_signals,
+                "freshness": freshness,
+            }
+        }
+    finally:
+        conn.close()
+
+
 @app.get("/api/alerts/{alert_id}")
 def get_alert(alert_id: int) -> dict[str, Any]:
     conn = _db()

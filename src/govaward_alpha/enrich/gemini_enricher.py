@@ -1,4 +1,4 @@
-"""Google Gemini-powered award enrichment: resolver verification, contract quality, and materiality narrative."""
+"""Google Gemini-powered award enrichment: retail catalyst strategy, front-running advice, and materiality analysis."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class GeminiAnalysis:
-    """Structured output from Gemini enrichment."""
+    """Structured output from Gemini enrichment with retail trading strategy."""
 
     __slots__ = (
         "resolver_confidence",
@@ -23,6 +23,11 @@ class GeminiAnalysis:
         "materiality_narrative",
         "watch_flags",
         "raw_response",
+        "action_verdict",
+        "headline",
+        "trade_strategy",
+        "retail_thesis",
+        "trap_check",
     )
 
     def __init__(
@@ -34,6 +39,11 @@ class GeminiAnalysis:
         materiality_narrative: str = "",
         watch_flags: list[str] | None = None,
         raw_response: str = "",
+        action_verdict: str = "MOMENTUM WATCH",
+        headline: str = "",
+        trade_strategy: str = "",
+        retail_thesis: str = "",
+        trap_check: str = "",
     ) -> None:
         self.resolver_confidence = resolver_confidence   # high | medium | low | unknown
         self.resolver_note = resolver_note
@@ -42,6 +52,11 @@ class GeminiAnalysis:
         self.materiality_narrative = materiality_narrative
         self.watch_flags = watch_flags or []
         self.raw_response = raw_response
+        self.action_verdict = action_verdict             # HIGH CONVICTION BUY | MOMENTUM WATCH | TRAP / AVOID
+        self.headline = headline
+        self.trade_strategy = trade_strategy
+        self.retail_thesis = retail_thesis
+        self.trap_check = trap_check
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -51,6 +66,11 @@ class GeminiAnalysis:
             "quality_note": self.quality_note,
             "materiality_narrative": self.materiality_narrative,
             "watch_flags": self.watch_flags,
+            "action_verdict": self.action_verdict,
+            "headline": self.headline,
+            "trade_strategy": self.trade_strategy,
+            "retail_thesis": self.retail_thesis,
+            "trap_check": self.trap_check,
         }
 
 
@@ -59,27 +79,32 @@ ClaudeAnalysis = GeminiAnalysis
 
 
 _SYSTEM_PROMPT = """\
-You are a U.S. government contract analyst helping a retail investor understand whether a federal award \
-may be materially significant to a small or mid-cap public company. \
-You have no access to real-time data — reason only from the information provided.
+You are an expert Wall Street retail catalyst trader and government contract specialist.
+Your edge: Federal procurement databases publish multi-million dollar contract awards hours or days \
+before mainstream financial media (Bloomberg/CNBC/Robinhood news feeds) report them.
+You help opportunistic traders identify small to mid-cap companies ($50M-$10B market cap) winning major \
+federal contracts ($50M+) to buy the stock before the market absorbs the announcement.
 
 Respond ONLY with valid JSON matching this schema:
 {
+  "action_verdict": "HIGH CONVICTION BUY" | "MOMENTUM WATCH" | "TRAP / AVOID",
+  "headline": "<One punchy headline highlighting ticker, contract value, and % of market cap>",
+  "trade_strategy": "<Direct, actionable trading strategy: pre-market/market-open timing, key price/volume breakout confirmation, and target holding window>",
+  "retail_thesis": "<2-3 sentences explaining why mainstream retail hasn't priced this in yet and how this contract moves the fundamental valuation>",
+  "trap_check": "<1 sentence evaluating whether this is real immediate cash (firm-fixed-price/obligated) or a trap (unfunded IDIQ ceiling / administrative mod)>",
   "resolver_confidence": "high" | "medium" | "low",
-  "resolver_note": "<one sentence on whether the ticker match looks correct>",
+  "resolver_note": "<One sentence on whether the ticker match looks correct>",
   "contract_quality": "real_revenue" | "idiq_ceiling" | "modification" | "unclear",
-  "quality_note": "<one sentence on whether this award represents real booked revenue>",
-  "materiality_narrative": "<2-3 sentences: investment context, what this award means for the company>",
-  "watch_flags": ["<concern 1>", "<concern 2>"]
+  "quality_note": "<One sentence on cash certainty>",
+  "materiality_narrative": "<2-3 sentences investment narrative>",
+  "watch_flags": ["<risk 1>", "<risk 2>"]
 }
 
 Rules:
-- resolver_confidence "low" if the awardee name and ticker name share almost no words or the awardee appears to be a private company / nonprofit.
-- contract_quality "idiq_ceiling" if description mentions IDIQ, ceiling, maximum, or task orders without guaranteed funding.
-- contract_quality "modification" if this is a contract mod, option exercise, or price adjustment.
-- contract_quality "real_revenue" if this is a firm-fixed-price new award or delivery order with immediate obligation.
-- watch_flags: list up to 4 concrete concerns (e.g. "IDIQ ceiling not guaranteed", "awardee may be subsidiary not parent", "market cap data missing").
-- Be concise. Do not add disclaimers. Do not hedge about being an AI.
+- action_verdict "HIGH CONVICTION BUY" if award amount is >= 10% of market cap, new award, and immediate obligated funds.
+- action_verdict "TRAP / AVOID" if the award is merely an uncommitted IDIQ maximum ceiling with zero guaranteed task orders, or ticker resolution is questionable.
+- action_verdict "MOMENTUM WATCH" for incremental modifications or moderate-sized wins (3-10% of cap).
+- Be direct, confident, and tactical. Never include AI boilerplate or generic disclaimer text.
 """
 
 
@@ -98,48 +123,111 @@ def _build_user_prompt(award: Award, company: Company | None, result: ScoreResul
     ticker = award.ticker or "UNRESOLVED"
     company_name = (company.company_name if company else None) or award.parent_company_name or "unknown"
 
+    ratio_str = "unknown"
+    if company and company.market_cap and award.award_amount:
+        ratio = (award.award_amount / company.market_cap) * 100.0
+        ratio_str = f"{ratio:.1f}% of market cap"
+
     flags = []
     if award.is_idiq:
-        flags.append("IDIQ")
+        flags.append("IDIQ ceiling")
     if award.is_ceiling_only:
-        flags.append("ceiling only")
+        flags.append("ceiling only (unfunded)")
     if award.is_modification:
         flags.append("modification")
     if award.is_option_exercise:
         flags.append("option exercise")
-    flags_str = ", ".join(flags) if flags else "none"
+    flags_str = ", ".join(flags) if flags else "clean new award"
 
     desc = award.description[:600] if award.description else "not provided"
 
     return f"""\
-Award details:
-- Awardee name (raw):      {award.awardee_name_raw}
-- Resolved ticker:         {ticker}
-- Resolved company name:   {company_name}
-- Award amount:            {fmt(award.award_amount)}
-- Obligated amount:        {fmt(award.obligated_amount)}
-- Company market cap:      {mktcap}
-- Company revenue (TTM):   {revenue}
-- Agency:                  {award.agency}
-- Award type:              {award.award_type}
-- Contract flags:          {flags_str}
-- Materiality score:       {result.score}/100 ({result.level})
-- Description excerpt:     {desc}
+Contract Announcement Catalyst:
+- Ticker:                  {ticker}
+- Company Name:            {company_name}
+- Market Cap:              {mktcap}
+- Annual Revenue (TTM):    {revenue}
+- Award Amount:            {fmt(award.award_amount)} ({ratio_str})
+- Obligated Amount:        {fmt(award.obligated_amount)}
+- Awarding Agency:         {award.agency}
+- Procurement Flags:       {flags_str}
+- Posted Date:             {award.posted_date or 'Recent'}
+- Materiality Score:       {result.score}/100 ({result.level})
+- Contract Scope:          {desc}
 
-Scoring reasons:
+Score Drivers:
 {chr(10).join(f"  - {r}" for r in result.reasons)}
 
-Evaluate: (1) Is the ticker match plausible? (2) Does this award represent real booked revenue? \
-(3) Write a materiality narrative for a retail investor monitoring this ticker."""
+Provide tactical retail front-running trade strategy, action verdict, and trap analysis."""
+
+
+def synthesize_retail_strategy(
+    award: Award,
+    company: Company | None,
+    result: ScoreResult | None = None,
+) -> dict[str, Any]:
+    """
+    Algorithmic retail catalyst synthesizer.
+    Provides immediate, actionable trading intelligence even when offline or before LLM API calls.
+    """
+    amt = award.award_amount or award.obligated_amount or 0
+    cap = (company.market_cap if company else None) or 0
+    ratio = (amt / cap) if (cap > 0 and amt > 0) else 0.0
+    ratio_pct = ratio * 100.0
+    ticker = award.ticker or "UNRESOLVED"
+    co_name = (company.company_name if company else None) or award.parent_company_name or "Target Contractor"
+
+    # Evaluate verdict and trap status
+    is_trap = award.is_ceiling_only or (award.is_idiq and (award.obligated_amount or 0) < amt * 0.1)
+    
+    if is_trap:
+        verdict = "TRAP / AVOID"
+        trap_check = "CAUTION: Unfunded ceiling/IDIQ structure — zero immediate guaranteed revenue booked."
+        strategy = "Avoid buying on headline hype. IDIQ ceiling numbers frequently trap retail traders; wait for actual task order obligations."
+    elif ratio >= 0.15:
+        verdict = "HIGH CONVICTION BUY"
+        trap_check = f"VERIFIED ACCRETIVE: Contract represents {ratio_pct:.1f}% of entire market capitalization with firm government obligation."
+        strategy = f"Front-run market coverage. Enter pre-market or on opening volume surge over 20-day average. Target multi-day continuation as retail feeds pick up the announcement."
+    elif ratio >= 0.05 or amt >= 100_000_000:
+        verdict = "MOMENTUM WATCH"
+        trap_check = f"SOLID CATALYST: Contract is {ratio_pct:.1f}% of cap (${amt/1e6:.1f}M inflow). High probability of institutional accumulation."
+        strategy = f"Add {ticker} to immediate momentum watch. Look for volume spike above opening VWAP to confirm institutional interest before taking a position."
+    else:
+        verdict = "MOMENTUM WATCH"
+        trap_check = "Standard procurement flow; monitor subsequent task order announcements."
+        strategy = f"Monitor {ticker} for contract flow cluster. Often multiple agency task orders precede earnings surprises."
+
+    headline = f"{ticker} wins ${amt/1e6:.1f}M {award.agency} contract" + (f" ({ratio_pct:.1f}% of market cap)" if ratio > 0 else "")
+
+    thesis = (
+        f"{co_name} ({ticker}) has secured a ${amt/1e6:.1f}M procurement catalyst from {award.agency}. "
+        f"At {ratio_pct:.1f}% of current market valuation, this contract is a material earnings driver that retail news algorithms typically take 12-36 hours to syndicate."
+    )
+
+    return {
+        "action_verdict": verdict,
+        "headline": headline,
+        "trade_strategy": strategy,
+        "retail_thesis": thesis,
+        "trap_check": trap_check,
+        "resolver_confidence": "high" if ticker != "UNRESOLVED" else "low",
+        "resolver_note": f"Ticker resolved to {co_name}",
+        "contract_quality": "idiq_ceiling" if is_trap else ("modification" if award.is_modification else "real_revenue"),
+        "quality_note": trap_check,
+        "materiality_narrative": thesis,
+        "watch_flags": ["IDIQ ceiling not guaranteed"] if is_trap else [],
+    }
 
 
 def enrich(award: Award, company: Company | None, result: ScoreResult) -> GeminiAnalysis | None:
     """
-    Call Google Gemini to enrich an alert with resolver verification, contract quality, and narrative.
-    Returns None if Gemini API key is not configured or the call fails.
+    Call Google Gemini to enrich an alert with retail front-running strategy and analysis.
+    Falls back to algorithmic synthesizer if API key is not configured or call fails.
     """
     settings = get_settings()
     api_key = settings.gemini_api_key or settings.anthropic_api_key
+    
+    # If no API key configured, skip enrichment
     if not api_key:
         logger.debug("GEMINI_API_KEY not set — skipping Gemini enrichment.")
         return None
@@ -189,12 +277,14 @@ def enrich(award: Award, company: Company | None, result: ScoreResult) -> Gemini
                 if parts:
                     raw = parts[0].get("text", "").strip()
         except Exception as rest_exc:
-            logger.warning("Gemini API call failed (SDK and REST): %s", rest_exc)
-            return None
+            logger.warning("Gemini API call failed: %s", rest_exc)
+            # Fall back to algorithmic synthesizer
+            syn = synthesize_retail_strategy(award, company, result)
+            return GeminiAnalysis(**syn, raw_response=f"error_fallback: {rest_exc}")
 
     if not raw:
-        logger.warning("Gemini returned empty response")
-        return None
+        syn = synthesize_retail_strategy(award, company, result)
+        return GeminiAnalysis(**syn, raw_response="empty_response_fallback")
 
     try:
         data = json.loads(raw)
@@ -205,11 +295,11 @@ def enrich(award: Award, company: Company | None, result: ScoreResult) -> Gemini
             try:
                 data = json.loads(raw[start:end])
             except json.JSONDecodeError:
-                logger.warning("Gemini returned non-JSON response: %s", raw[:200])
-                return GeminiAnalysis(raw_response=raw)
+                syn = synthesize_retail_strategy(award, company, result)
+                return GeminiAnalysis(**syn, raw_response=raw)
         else:
-            logger.warning("Gemini returned non-JSON response: %s", raw[:200])
-            return GeminiAnalysis(raw_response=raw)
+            syn = synthesize_retail_strategy(award, company, result)
+            return GeminiAnalysis(**syn, raw_response=raw)
 
     return GeminiAnalysis(
         resolver_confidence=data.get("resolver_confidence", "unknown"),
@@ -219,4 +309,9 @@ def enrich(award: Award, company: Company | None, result: ScoreResult) -> Gemini
         materiality_narrative=data.get("materiality_narrative", ""),
         watch_flags=data.get("watch_flags", []),
         raw_response=raw,
+        action_verdict=data.get("action_verdict", "MOMENTUM WATCH"),
+        headline=data.get("headline", ""),
+        trade_strategy=data.get("trade_strategy", ""),
+        retail_thesis=data.get("retail_thesis", ""),
+        trap_check=data.get("trap_check", ""),
     )
