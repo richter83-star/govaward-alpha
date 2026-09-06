@@ -54,11 +54,11 @@ class Settings(BaseSettings):
 
     # Google Gemini AI
     gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
-    gemini_model: str = Field(default="gemini-2.5-flash", alias="GEMINI_MODEL")
+    gemini_model: str = Field(default="gemini-3.1-flash-lite", alias="GEMINI_MODEL")
 
     # Anthropic / Claude (legacy aliases for backward compatibility)
     anthropic_api_key: str = Field(default="", alias="ANTHROPIC_API_KEY")
-    claude_model: str = Field(default="gemini-2.5-flash", alias="CLAUDE_MODEL")
+    claude_model: str = Field(default="gemini-3.1-flash-lite", alias="CLAUDE_MODEL")
 
     # SEC — the EDGAR fair-access policy asks automated clients to identify
     # themselves with a real contact address. Set SEC_CONTACT_EMAIL in .env;
