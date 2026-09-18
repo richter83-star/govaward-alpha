@@ -452,13 +452,86 @@ def list_company_approvals() -> list[dict[str, Any]]:
         conn.close()
 
 
+@app.post("/api/trader/approvals/bulk")
+async def bulk_set_company_approvals(
+    request: Request,
+    is_approved: int = Query(1),
+    auto_trade_enabled: int = Query(1),
+) -> dict[str, Any]:
+    from govaward_alpha import db
+    body: dict[str, Any] = {}
+    if request.headers.get("content-type", "").startswith("application/json"):
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+
+    appr_val = body.get("is_approved", is_approved)
+    auto_val = body.get("auto_trade_enabled", auto_trade_enabled)
+    alloc_val = body.get("max_allocation")
+
+    conn = _db()
+    try:
+        count = db.bulk_set_company_approvals(
+            conn,
+            is_approved=int(appr_val),
+            auto_trade_enabled=int(auto_val),
+            max_allocation=float(alloc_val) if alloc_val is not None else None,
+        )
+        return {"ok": True, "updated_count": count}
+    finally:
+        conn.close()
+
+
+@app.post("/api/trader/bankroll/reset")
+async def reset_paper_bankroll(
+    request: Request,
+    amount: float = Query(100000.0, ge=5.0),
+) -> dict[str, Any]:
+    from govaward_alpha import db
+    body: dict[str, Any] = {}
+    if request.headers.get("content-type", "").startswith("application/json"):
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+
+    target_amount = float(body.get("amount", amount))
+    conn = _db()
+    try:
+        new_balance = db.set_paper_cash_balance(conn, target_amount)
+        return {"ok": True, "paper_cash_balance": new_balance}
+    finally:
+        conn.close()
+
+
+@app.get("/api/trader/alpaca/account")
+def get_alpaca_account_status() -> dict[str, Any]:
+    """Retrieve live Alpaca connection and account metrics."""
+    from govaward_alpha.services.alpaca_broker import AlpacaBroker
+    broker = AlpacaBroker()
+    if not broker.is_configured:
+        return {
+            "ok": False,
+            "configured": False,
+            "error": "Alpaca API credentials are not set in .env",
+            "is_paper": broker.is_paper,
+        }
+    status = broker.verify_credentials()
+    status["configured"] = True
+    clock = broker.get_clock()
+    status["market_open"] = bool(clock.get("is_open", False))
+    status["clock"] = clock
+    return status
+
+
 @app.post("/api/trader/approvals/{ticker}")
 async def set_company_approval(
     ticker: str,
     request: Request,
     is_approved: int | None = Query(None, ge=0, le=1),
     auto_trade_enabled: int | None = Query(None, ge=0, le=1),
-    max_allocation: float | None = Query(None, ge=100.0),
+    max_allocation: float | None = Query(None, ge=1.0),
     notes: str | None = Query(None),
 ) -> dict[str, Any]:
     from govaward_alpha import db
@@ -782,6 +855,29 @@ def chart_scores() -> dict[str, Any]:
         conn.close()
 
 
+@app.get("/api/charts/levels")
+def chart_levels() -> dict[str, Any]:
+    """Urgency level breakdown across all awards."""
+    conn = _db()
+    try:
+        rows = conn.execute(
+            """SELECT COALESCE(alert_level, 'WATCH') as lvl, COUNT(*) as cnt
+               FROM awards
+               GROUP BY alert_level"""
+        ).fetchall()
+        counts = {r[0]: r[1] for r in rows}
+        total = sum(counts.values()) or 1
+        return {
+            "RED": counts.get("RED", 0),
+            "ORANGE": counts.get("ORANGE", 0),
+            "YELLOW": counts.get("YELLOW", 0),
+            "WATCH": counts.get("WATCH", 0),
+            "total": total,
+        }
+    finally:
+        conn.close()
+
+
 @app.get("/api/charts/ticker-value")
 def chart_ticker_value() -> dict[str, Any]:
     """Top tickers by total award value."""
@@ -981,8 +1077,9 @@ def trigger_scan() -> dict[str, Any]:
             _scan_status["last_run"] = utcnow().isoformat()
             try:
                 from govaward_alpha.services.scan_service import run_source
+                from govaward_alpha.sources import usaspending
 
-                run_source("usaspending", lookback=1)
+                run_source("usaspending", usaspending.fetch_recent_awards, lookback_days=1)
                 _scan_status["last_status"] = "success"
                 _scan_status["message"] = "Scan completed successfully."
             except Exception as exc:

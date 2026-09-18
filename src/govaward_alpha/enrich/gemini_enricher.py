@@ -28,6 +28,13 @@ class GeminiAnalysis:
         "trade_strategy",
         "retail_thesis",
         "trap_check",
+        "conviction_score",
+        "catalyst_velocity",
+        "recommended_allocation_pct",
+        "target_holding_days",
+        "optimal_take_profit_pct",
+        "optimal_stop_loss_pct",
+        "execution_urgency",
     )
 
     def __init__(
@@ -44,6 +51,13 @@ class GeminiAnalysis:
         trade_strategy: str = "",
         retail_thesis: str = "",
         trap_check: str = "",
+        conviction_score: int = 70,
+        catalyst_velocity: str = "MOMENTUM_SURGE",
+        recommended_allocation_pct: float = 0.10,
+        target_holding_days: str = "1–2 Sessions",
+        optimal_take_profit_pct: float = 12.0,
+        optimal_stop_loss_pct: float = 3.5,
+        execution_urgency: str = "MARKET_OPEN",
     ) -> None:
         self.resolver_confidence = resolver_confidence   # high | medium | low | unknown
         self.resolver_note = resolver_note
@@ -57,6 +71,13 @@ class GeminiAnalysis:
         self.trade_strategy = trade_strategy
         self.retail_thesis = retail_thesis
         self.trap_check = trap_check
+        self.conviction_score = int(conviction_score or 70)
+        self.catalyst_velocity = str(catalyst_velocity or "MOMENTUM_SURGE")
+        self.recommended_allocation_pct = float(recommended_allocation_pct or 0.10)
+        self.target_holding_days = str(target_holding_days or "1–2 Sessions")
+        self.optimal_take_profit_pct = float(optimal_take_profit_pct or 12.0)
+        self.optimal_stop_loss_pct = float(optimal_stop_loss_pct or 3.5)
+        self.execution_urgency = str(execution_urgency or "MARKET_OPEN")
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -71,6 +92,13 @@ class GeminiAnalysis:
             "trade_strategy": self.trade_strategy,
             "retail_thesis": self.retail_thesis,
             "trap_check": self.trap_check,
+            "conviction_score": self.conviction_score,
+            "catalyst_velocity": self.catalyst_velocity,
+            "recommended_allocation_pct": self.recommended_allocation_pct,
+            "target_holding_days": self.target_holding_days,
+            "optimal_take_profit_pct": self.optimal_take_profit_pct,
+            "optimal_stop_loss_pct": self.optimal_stop_loss_pct,
+            "execution_urgency": self.execution_urgency,
         }
 
 
@@ -88,6 +116,13 @@ federal contracts ($50M+) to buy the stock before the market absorbs the announc
 Respond ONLY with valid JSON matching this schema:
 {
   "action_verdict": "HIGH CONVICTION BUY" | "MOMENTUM WATCH" | "TRAP / AVOID",
+  "conviction_score": <1-100 integer confidence level>,
+  "catalyst_velocity": "IMMEDIATE_BREAKOUT" | "MOMENTUM_SURGE" | "ACCUMULATION_WATCH" | "AVOID_TRAP",
+  "recommended_allocation_pct": <0.05 to 0.25 float proportion of bankroll to deploy>,
+  "target_holding_days": "<e.g. 1–3 Sessions | Intraday Scalp>",
+  "optimal_take_profit_pct": <8.0 to 25.0 float profit exit target %>,
+  "optimal_stop_loss_pct": <2.5 to 5.0 float protective stop loss %>,
+  "execution_urgency": "ENTER_IMMEDIATELY_AT_OPEN" | "ENTER_ON_VWAP_CROSS" | "MONITOR_ONLY" | "DO_NOT_ENTER",
   "headline": "<One punchy headline highlighting ticker, contract value, and % of market cap>",
   "trade_strategy": "<Direct, actionable trading strategy: pre-market/market-open timing, key price/volume breakout confirmation, and target holding window>",
   "retail_thesis": "<2-3 sentences explaining why mainstream retail hasn't priced this in yet and how this contract moves the fundamental valuation>",
@@ -104,6 +139,7 @@ Rules:
 - action_verdict "HIGH CONVICTION BUY" if award amount is >= 10% of market cap, new award, and immediate obligated funds.
 - action_verdict "TRAP / AVOID" if the award is merely an uncommitted IDIQ maximum ceiling with zero guaranteed task orders, or ticker resolution is questionable.
 - action_verdict "MOMENTUM WATCH" for incremental modifications or moderate-sized wins (3-10% of cap).
+- recommended_allocation_pct: 0.20-0.25 for explosive plays (>=20% cap), 0.12-0.18 for major plays (15-20% cap), 0.06-0.10 for moderate momentum.
 - Be direct, confident, and tactical. Never include AI boilerplate or generic disclaimer text.
 """
 
@@ -177,25 +213,75 @@ def synthesize_retail_strategy(
     ticker = award.ticker or "UNRESOLVED"
     co_name = (company.company_name if company else None) or award.parent_company_name or "Target Contractor"
 
-    # Evaluate verdict and trap status
+    # Evaluate verdict, trap status, and fast-alpha allocation parameters
     is_trap = award.is_ceiling_only or (award.is_idiq and (award.obligated_amount or 0) < amt * 0.1)
     
     if is_trap:
         verdict = "TRAP / AVOID"
         trap_check = "CAUTION: Unfunded ceiling/IDIQ structure — zero immediate guaranteed revenue booked."
         strategy = "Avoid buying on headline hype. IDIQ ceiling numbers frequently trap retail traders; wait for actual task order obligations."
-    elif ratio >= 0.15:
+        velocity = "AVOID_TRAP"
+        conviction = 15
+        alloc_pct = 0.0
+        hold_window = "None (Avoid)"
+        tp_pct = 0.0
+        sl_pct = 0.0
+        urgency = "DO_NOT_ENTER"
+    elif ratio >= 0.20:
         verdict = "HIGH CONVICTION BUY"
         trap_check = f"VERIFIED ACCRETIVE: Contract represents {ratio_pct:.1f}% of entire market capitalization with firm government obligation."
-        strategy = f"Front-run market coverage. Enter pre-market or on opening volume surge over 20-day average. Target multi-day continuation as retail feeds pick up the announcement."
+        strategy = f"Ultra-Catalyst Play. Front-run market coverage at open. Target aggressive +18% multi-day repricing wave as retail syndicates discover the award."
+        velocity = "IMMEDIATE_BREAKOUT"
+        conviction = 95
+        alloc_pct = 0.22  # 22% of bankroll for massive wins
+        hold_window = "1–3 Sessions"
+        tp_pct = 18.0
+        sl_pct = 3.5
+        urgency = "ENTER_IMMEDIATELY_AT_OPEN"
+    elif ratio >= 0.15:
+        verdict = "HIGH CONVICTION BUY"
+        trap_check = f"VERIFIED ACCRETIVE: Contract represents {ratio_pct:.1f}% of market cap with confirmed procurement obligation."
+        strategy = f"Major Accretive Win. Enter on opening volume spike. Target +15% continuation."
+        velocity = "IMMEDIATE_BREAKOUT"
+        conviction = 88
+        alloc_pct = 0.16  # 16% of bankroll
+        hold_window = "1–3 Sessions"
+        tp_pct = 15.0
+        sl_pct = 3.5
+        urgency = "ENTER_ON_OPEN_VOLUME"
+    elif ratio >= 0.10:
+        verdict = "HIGH CONVICTION BUY"
+        trap_check = f"SOLID CATALYST: Contract is {ratio_pct:.1f}% of cap (${amt/1e6:.1f}M inflow). High probability of institutional accumulation."
+        strategy = f"Momentum Surge. Target +10% quick gain with tight stop."
+        velocity = "MOMENTUM_SURGE"
+        conviction = 80
+        alloc_pct = 0.10  # 10% of bankroll
+        hold_window = "1–2 Sessions"
+        tp_pct = 10.0
+        sl_pct = 3.0
+        urgency = "ENTER_ON_VWAP_CROSS"
     elif ratio >= 0.05 or amt >= 100_000_000:
         verdict = "MOMENTUM WATCH"
-        trap_check = f"SOLID CATALYST: Contract is {ratio_pct:.1f}% of cap (${amt/1e6:.1f}M inflow). High probability of institutional accumulation."
-        strategy = f"Add {ticker} to immediate momentum watch. Look for volume spike above opening VWAP to confirm institutional interest before taking a position."
+        trap_check = f"MODERATE CATALYST: Contract is {ratio_pct:.1f}% of cap (${amt/1e6:.1f}M inflow)."
+        strategy = f"Tactical Momentum Watch. Add {ticker} to watchlist for volume surge confirmation."
+        velocity = "ACCUMULATION_WATCH"
+        conviction = 65
+        alloc_pct = 0.05
+        hold_window = "Intraday Scalp"
+        tp_pct = 8.0
+        sl_pct = 3.0
+        urgency = "MONITOR_ONLY"
     else:
         verdict = "MOMENTUM WATCH"
         trap_check = "Standard procurement flow; monitor subsequent task order announcements."
-        strategy = f"Monitor {ticker} for contract flow cluster. Often multiple agency task orders precede earnings surprises."
+        strategy = f"Monitor {ticker} for contract flow cluster."
+        velocity = "ACCUMULATION_WATCH"
+        conviction = 50
+        alloc_pct = 0.0
+        hold_window = "None"
+        tp_pct = 6.0
+        sl_pct = 3.0
+        urgency = "MONITOR_ONLY"
 
     headline = f"{ticker} wins ${amt/1e6:.1f}M {award.agency} contract" + (f" ({ratio_pct:.1f}% of market cap)" if ratio > 0 else "")
 
@@ -210,6 +296,13 @@ def synthesize_retail_strategy(
         "trade_strategy": strategy,
         "retail_thesis": thesis,
         "trap_check": trap_check,
+        "conviction_score": conviction,
+        "catalyst_velocity": velocity,
+        "recommended_allocation_pct": alloc_pct,
+        "target_holding_days": hold_window,
+        "optimal_take_profit_pct": tp_pct,
+        "optimal_stop_loss_pct": sl_pct,
+        "execution_urgency": urgency,
         "resolver_confidence": "high" if ticker != "UNRESOLVED" else "low",
         "resolver_note": f"Ticker resolved to {co_name}",
         "contract_quality": "idiq_ceiling" if is_trap else ("modification" if award.is_modification else "real_revenue"),
@@ -314,4 +407,11 @@ def enrich(award: Award, company: Company | None, result: ScoreResult) -> Gemini
         trade_strategy=data.get("trade_strategy", ""),
         retail_thesis=data.get("retail_thesis", ""),
         trap_check=data.get("trap_check", ""),
+        conviction_score=int(data.get("conviction_score") or 75),
+        catalyst_velocity=str(data.get("catalyst_velocity") or "MOMENTUM_SURGE"),
+        recommended_allocation_pct=float(data.get("recommended_allocation_pct") or 0.10),
+        target_holding_days=str(data.get("target_holding_days") or "1–3 Sessions"),
+        optimal_take_profit_pct=float(data.get("optimal_take_profit_pct") or 12.0),
+        optimal_stop_loss_pct=float(data.get("optimal_stop_loss_pct") or 3.5),
+        execution_urgency=str(data.get("execution_urgency") or "MARKET_OPEN"),
     )

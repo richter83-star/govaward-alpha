@@ -23,6 +23,7 @@ import yaml
 from rapidfuzz import fuzz, process
 
 from govaward_alpha.config import get_settings
+from govaward_alpha.models import ResolutionConfidence
 from govaward_alpha.normalize import normalize_company_name
 from govaward_alpha.sources.sec_tickers import get_ticker_map
 
@@ -91,10 +92,16 @@ def resolve(awardee_name_raw: str) -> dict[str, str | None]:
             "ticker": str | None,
             "parent_company_name": str,
             "resolution_method": str,
+            "confidence": str,
         }
     """
     if not awardee_name_raw:
-        return {"ticker": None, "parent_company_name": "", "resolution_method": "empty"}
+        return {
+            "ticker": None,
+            "parent_company_name": "",
+            "resolution_method": "empty",
+            "confidence": ResolutionConfidence.UNRESOLVED,
+        }
 
     normalized = normalize_company_name(awardee_name_raw)
 
@@ -107,20 +114,26 @@ def resolve(awardee_name_raw: str) -> dict[str, str | None]:
             "ticker": entry.get("ticker"),
             "parent_company_name": entry.get("parent_company_name") or awardee_name_raw,
             "resolution_method": "manual_override",
+            "confidence": ResolutionConfidence.MANUAL_OVERRIDE,
         }
 
     # Also try partial override key match (for subsidiaries with slightly different names)
+    awardee_head = (normalized.split() or [""])[0]
     for override_key, entry in overrides.items():
-        if override_key and normalized and (
-            override_key in normalized or normalized in override_key
-        ):
-            if len(override_key) > 6:  # avoid false positives on very short keys
-                logger.debug("Resolved '%s' via partial override '%s' → %s", awardee_name_raw, override_key, entry.get("ticker"))
-                return {
-                    "ticker": entry.get("ticker"),
-                    "parent_company_name": entry.get("parent_company_name") or awardee_name_raw,
-                    "resolution_method": "manual_override_partial",
-                }
+        if override_key and normalized and len(override_key) > 6:
+            override_head = (override_key.split() or [""])[0]
+            # Guard: require leading token agreement to avoid mapping generic
+            # suffixes ("federal services", "security solutions", "construction")
+            # to unrelated public tickers.
+            if awardee_head and override_head and awardee_head == override_head:
+                if override_key in normalized or (normalized in override_key and len(normalized) >= 6):
+                    logger.debug("Resolved '%s' via partial override '%s' → %s", awardee_name_raw, override_key, entry.get("ticker"))
+                    return {
+                        "ticker": entry.get("ticker"),
+                        "parent_company_name": entry.get("parent_company_name") or awardee_name_raw,
+                        "resolution_method": "manual_override_partial",
+                        "confidence": ResolutionConfidence.MANUAL_OVERRIDE,
+                    }
 
     # 2. SEC exact match
     ticker_map = get_ticker_map()
@@ -131,6 +144,7 @@ def resolve(awardee_name_raw: str) -> dict[str, str | None]:
             "ticker": entry["ticker"],
             "parent_company_name": entry["company_name"],
             "resolution_method": "sec_exact",
+            "confidence": ResolutionConfidence.HIGH_CONFIDENCE,
         }
 
     # 3. SEC fuzzy match — only if normalized name is long enough to be discriminating
@@ -162,14 +176,20 @@ def resolve(awardee_name_raw: str) -> dict[str, str | None]:
                     )
                     continue
                 entry = ticker_map[match_key]
+                conf = (
+                    ResolutionConfidence.HIGH_CONFIDENCE
+                    if score >= 98
+                    else ResolutionConfidence.MEDIUM_CONFIDENCE
+                )
                 logger.debug(
-                    "Resolved '%s' via SEC fuzzy (score=%d) → %s",
-                    awardee_name_raw, score, entry["ticker"],
+                    "Resolved '%s' via SEC fuzzy (score=%d) → %s (%s)",
+                    awardee_name_raw, score, entry["ticker"], conf,
                 )
                 return {
                     "ticker": entry["ticker"],
                     "parent_company_name": entry["company_name"],
                     "resolution_method": f"sec_fuzzy_{score}",
+                    "confidence": conf,
                 }
 
     # 4. yfinance ticker symbol guess (last resort)
@@ -183,6 +203,7 @@ def resolve(awardee_name_raw: str) -> dict[str, str | None]:
         "ticker": None,
         "parent_company_name": awardee_name_raw,
         "resolution_method": "unresolved",
+        "confidence": ResolutionConfidence.UNRESOLVED,
     }
 
 
@@ -258,6 +279,7 @@ def _guess_ticker_yfinance(raw_name: str, normalized: str) -> dict | None:
             "ticker": symbol,
             "parent_company_name": name,
             "resolution_method": f"yfinance_search_p{partial}_t{token}",
+            "confidence": ResolutionConfidence.LOW_CONFIDENCE,
         }
     return None
 

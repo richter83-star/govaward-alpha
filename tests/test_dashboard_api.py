@@ -314,4 +314,15 @@ class TestRetailCatalysts:
         assert "trap_check" in strat
 
 
+class TestScanTriggerEndpoint:
+    def test_scan_status_and_trigger(self, client, monkeypatch):
+        # Test status endpoint
+        resp = client.get("/api/scan/status")
+        assert resp.status_code == 200
+        assert "running" in resp.json()
 
+        # Mock run_source to avoid live external network calls
+        monkeypatch.setattr("govaward_alpha.services.scan_service.run_source", lambda *args, **kwargs: {"seen": 0})
+        resp_trig = client.post("/api/scan/trigger")
+        assert resp_trig.status_code == 200
+        assert resp_trig.json()["status"] in ["started", "busy"]

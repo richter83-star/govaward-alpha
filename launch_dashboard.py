@@ -23,57 +23,35 @@ if str(SRC_DIR) not in sys.path:
 
 os.chdir(PROJECT_ROOT)
 
-URL = "http://127.0.0.1:8050/"
+URL = "http://127.0.0.1:8055/"
 
 
 def is_server_ready() -> bool:
-    """Check if the dashboard server is responding."""
+    """Check if the dashboard server or tunnel is responding."""
     try:
         req = urllib.request.Request(URL, headers={"User-Agent": "GovAwardLauncher/1.0"})
-        with urllib.request.urlopen(req, timeout=1.0) as resp:
+        with urllib.request.urlopen(req, timeout=1.5) as resp:
             return resp.status == 200
     except Exception:
         return False
 
 
-def pop_browser() -> None:
-    """Wait for server to be responsive, then open default browser."""
-    # Poll for up to 15 seconds (30 attempts x 0.5s)
-    for _ in range(30):
-        if is_server_ready():
-            webbrowser.open(URL)
-            return
-        time.sleep(0.5)
-    # If timeout reached, try opening anyway
-    webbrowser.open(URL)
-
-
 def main() -> None:
-    # 1. If server is already running, simply focus/open the browser and exit cleanly
-    if is_server_ready():
-        webbrowser.open(URL)
-        sys.exit(0)
+    # 1. Start the persistent background tunnel watchdog if not already running
+    import subprocess
+    vbs_path = PROJECT_ROOT / "start_tunnel_hidden.vbs"
+    if vbs_path.exists():
+        subprocess.run(["wscript.exe", str(vbs_path)], check=False)
 
-    # 2. Spawn a background thread to pop open the default browser once server is alive
-    browser_thread = threading.Thread(target=pop_browser, daemon=True)
-    browser_thread.start()
+    # 2. Wait up to 10 seconds for the tunnel to respond
+    for _ in range(20):
+        if is_server_ready():
+            break
+        time.sleep(0.5)
 
-    # 3. Ensure database is initialized / migrated
-    try:
-        from govaward_alpha.db import init_db
-        init_db()
-    except Exception as exc:
-        pass
-
-    # 4. Run Uvicorn server
-    import uvicorn
-    uvicorn.run(
-        "govaward_alpha.dashboard.app:app",
-        host="127.0.0.1",
-        port=8050,
-        reload=False,
-        log_level="warning",
-    )
+    # 3. Open the dashboard in default browser
+    webbrowser.open(URL)
+    sys.exit(0)
 
 
 if __name__ == "__main__":

@@ -45,8 +45,8 @@ overrides:
     parent_company_name: Leidos Holdings, Inc.
     ticker: LDOS
   mantech international:
-    parent_company_name: ManTech International Corporation
-    ticker: MANT
+    parent_company_name: ManTech International Corporation (private)
+    ticker: null
   palantir usg inc:
     parent_company_name: Palantir Technologies Inc.
     ticker: PLTR
@@ -57,8 +57,8 @@ overrides:
     parent_company_name: Parsons Corporation
     ticker: PSN
   perspecta:
-    parent_company_name: Leidos Holdings, Inc.
-    ticker: LDOS
+    parent_company_name: Peraton Inc. (private)
+    ticker: null
   saic:
     parent_company_name: Science Applications International Corporation
     ticker: SAIC
@@ -191,4 +191,60 @@ overrides:
   consolidated nuclear security:
     parent_company_name: Consolidated Nuclear Security, LLC (private JV)
     ticker: null
-
+  sikorsky aircraft:
+    parent_company_name: Lockheed Martin Corporation
+    ticker: LMT
+  sikorsky aircraft corp:
+    parent_company_name: Lockheed Martin Corporation
+    ticker: LMT
+  pratt & whitney:
+    parent_company_name: RTX Corporation
+    ticker: RTX
+  pratt and whitney:
+    parent_company_name: RTX Corporation
+    ticker: RTX
+  collins aerospace:
+    parent_company_name: RTX Corporation
+    ticker: RTX
+  raytheon co:
+    parent_company_name: RTX Corporation
+    ticker: RTX
+  raytheon missile systems:
+    parent_company_name: RTX Corporation
+    ticker: RTX
+  aerojet rocketdyne:
+    parent_company_name: L3Harris Technologies, Inc.
+    ticker: LHX
+  aerojet rocketdyne inc:
+    parent_company_name: L3Harris Technologies, Inc.
+    ticker: LHX
+  bell textron:
+    parent_company_name: Textron Inc.
+    ticker: TXT
+  bell textron inc:
+    parent_company_name: Textron Inc.
+    ticker: TXT
+  newport news shipbuilding:
+    parent_company_name: Huntington Ingalls Industries, Inc.
+    ticker: HII
+  ingalls shipbuilding:
+    parent_company_name: Huntington Ingalls Industries, Inc.
+    ticker: HII
+  huntington ingalls industries:
+    parent_company_name: Huntington Ingalls Industries, Inc.
+    ticker: HII
+  general dynamics land systems:
+    parent_company_name: General Dynamics Corporation
+    ticker: GD
+  general dynamics electric boat:
+    parent_company_name: General Dynamics Corporation
+    ticker: GD
+  general dynamics ordnance and tactical systems:
+    parent_company_name: General Dynamics Corporation
+    ticker: GD
+  sierra technical services:
+    parent_company_name: Kratos Defense & Security Solutions, Inc.
+    ticker: KTOS
+  boeing aerospace operations:
+    parent_company_name: The Boeing Company
+    ticker: BA

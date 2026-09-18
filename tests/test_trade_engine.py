@@ -147,6 +147,107 @@ class TestAlphaPlayDetector:
         assert is_alpha is False
         assert "Flagged as TRAP" in reason
 
+    def test_alpha_play_low_confidence_disqualified(self):
+        award = Award(
+            source="sam_gov",
+            source_award_id="A-105",
+            awardee_name_raw="Ambiguous Firm",
+            agency="Navy",
+            posted_date=date(2026, 9, 1),
+            award_amount=100_000_000.0,
+            obligated_amount=100_000_000.0,
+            ticker="AMB",
+            ticker_confidence="LOW_CONFIDENCE",
+        )
+        company = Company(
+            ticker="AMB",
+            company_name="Ambiguous Inc",
+            market_cap=200_000_000.0,
+        )
+        score = ScoreResult(score=85, level="RED", reasons=[], breakdown={})
+        is_alpha, reason, _ = AlphaPlayDetector.is_alpha_play(award, company, score)
+        assert is_alpha is False
+        assert "Ticker confidence too low" in reason
+
+    def test_alpha_play_legacy_piid_disqualified(self):
+        award = Award(
+            source="usaspending",
+            source_award_id="80JSC017C0006",
+            contract_number="80JSC017C0006",
+            awardee_name_raw="KBR Wyle Services",
+            agency="NASA",
+            posted_date=date(2026, 9, 3),
+            award_date=date(2026, 9, 3),
+            award_amount=1_060_000_000.0,
+            obligated_amount=1_060_000_000.0,
+            description="MISSION SYSTEMS OPERATIONS CONTRACT (MSOC)",
+            ticker="KBR",
+        )
+        company = Company(ticker="KBR", company_name="KBR Inc", market_cap=4_600_000_000.0)
+        score = ScoreResult(score=85, level="RED", reasons=[], breakdown={})
+        is_alpha, reason, _ = AlphaPlayDetector.is_alpha_play(award, company, score)
+        assert is_alpha is False
+        assert "Contract vehicle from FY2017" in reason or "Legacy contract" in reason
+
+    def test_alpha_play_modification_disqualified(self):
+        award = Award(
+            source="sam_gov",
+            source_award_id="A-MOD-1",
+            awardee_name_raw="Kratos",
+            agency="Air Force",
+            posted_date=date(2026, 9, 1),
+            award_amount=50_000_000.0,
+            obligated_amount=50_000_000.0,
+            ticker="KTOS",
+            is_modification=True,
+        )
+        company = Company(ticker="KTOS", company_name="Kratos Defense", market_cap=500_000_000.0)
+        score = ScoreResult(score=80, level="RED", reasons=[], breakdown={})
+        is_alpha, reason, _ = AlphaPlayDetector.is_alpha_play(award, company, score)
+        assert is_alpha is False
+        assert "Contract modification" in reason
+
+    def test_alpha_play_legacy_period_start_disqualified(self):
+        award = Award(
+            source="usaspending",
+            source_award_id="75N93026C0001",
+            contract_number="75N93026C0001",
+            awardee_name_raw="Bioqual",
+            agency="HHS",
+            posted_date=date(2026, 9, 4),
+            award_date=date(2026, 9, 4),
+            period_start=date(2019, 9, 28),
+            award_amount=65_000_000.0,
+            obligated_amount=65_000_000.0,
+            ticker="BIOQ",
+        )
+        company = Company(ticker="BIOQ", company_name="Bioqual Inc", market_cap=29_000_000.0)
+        score = ScoreResult(score=92, level="RED", reasons=[], breakdown={})
+        is_alpha, reason, _ = AlphaPlayDetector.is_alpha_play(award, company, score)
+        assert is_alpha is False
+        assert "ongoing program" in reason or "legacy" in reason.lower()
+
+    def test_alpha_play_otc_disqualified(self):
+        award = Award(
+            source="sam_gov",
+            source_award_id="A-OTC-1",
+            contract_number="W9124P-26-C-0001",
+            awardee_name_raw="Bioqual",
+            agency="Army",
+            posted_date=date(2026, 9, 1),
+            award_date=date(2026, 9, 1),
+            period_start=date(2026, 9, 1),
+            award_amount=50_000_000.0,
+            obligated_amount=50_000_000.0,
+            ticker="BIOQ",
+        )
+        company = Company(ticker="BIOQ", company_name="Bioqual Inc", market_cap=29_000_000.0)
+        score = ScoreResult(score=90, level="RED", reasons=[], breakdown={})
+        with patch.object(PaperBroker, "is_liquid_exchange", return_value=(False, "OTC/Pink Sheet exchange (OID)")):
+            is_alpha, reason, _ = AlphaPlayDetector.is_alpha_play(award, company, score)
+        assert is_alpha is False
+        assert "OTC/Pink Sheet" in reason
+
 
 class TestTradeEngine:
     def test_stage_order_pending_approval(self):
@@ -361,6 +462,41 @@ class TestTradeEngine:
             assert closed["exit_reason"] == "MANUAL_CLOSE"
             assert closed["realized_pnl"] > 0
 
+    def test_prune_disqualified_positions(self):
+        db.init_db()
+        engine = TradeEngine()
+
+        with db.get_connection() as conn:
+            db.update_trade_config(conn, paper_cash_balance=1000.0)
+            db.insert_position(
+                conn,
+                {
+                    "ticker": "KBR",
+                    "mode": "PAPER",
+                    "shares": 10.0,
+                    "entry_price": 50.0,
+                    "current_price": 50.0,
+                    "status": "OPEN",
+                },
+            )
+            db.insert_position(
+                conn,
+                {
+                    "ticker": "BIOQ",
+                    "mode": "PAPER",
+                    "shares": 5.0,
+                    "entry_price": 30.0,
+                    "current_price": 30.0,
+                    "status": "OPEN",
+                },
+            )
+
+            pruned = engine.prune_disqualified_positions(conn)
+            assert len(pruned) == 2
+            cfg = db.get_trade_config(conn)
+            # Initial 1000 + (10 * 50 = 500) + (5 * 30 = 150) = 1650
+            assert cfg["paper_cash_balance"] == 1650.0
+
 
 class TestTraderApiEndpoints:
     def test_get_status_and_update_config(self, client):
@@ -368,7 +504,7 @@ class TestTraderApiEndpoints:
         assert res.status_code == 200
         data = res.json()
         assert data["engine_mode"] == "PAPER"
-        assert data["paper_cash_balance"] == 50000.0
+        assert data["paper_cash_balance"] == 100000.0
 
         # Update configuration
         update_res = client.post(
@@ -458,3 +594,165 @@ class TestTraderApiEndpoints:
             close_res = client.post(f"/api/trader/positions/{pos_id}/close")
             assert close_res.status_code == 200
             assert close_res.json()["status"] == "CLOSED"
+
+    def test_dynamic_allocation_sizing(self):
+        engine = TradeEngine(broker=PaperBroker())
+        # $100k bankroll, Tier 1 catalyst (22.4% ratio) -> 22% = $22k
+        alloc_tier1 = engine.calculate_dynamic_allocation(
+            available_cash=100000.0,
+            ratio_pct=22.4,
+            gemini_strategy=None,
+        )
+        assert alloc_tier1 == 22000.0
+
+        # Tier 2 catalyst (16% ratio) -> 16% = $16k
+        alloc_tier2 = engine.calculate_dynamic_allocation(
+            available_cash=100000.0,
+            ratio_pct=16.0,
+            gemini_strategy=None,
+        )
+        assert alloc_tier2 == 16000.0
+
+        # Tier 3 catalyst (11% ratio) -> 10% = $10k
+        alloc_tier3 = engine.calculate_dynamic_allocation(
+            available_cash=100000.0,
+            ratio_pct=11.0,
+            gemini_strategy=None,
+        )
+        assert alloc_tier3 == 10000.0
+
+        # LLM explicit recommendation overrides ratio tier (capped at 30%)
+        alloc_llm = engine.calculate_dynamic_allocation(
+            available_cash=100000.0,
+            ratio_pct=12.0,
+            gemini_strategy={"recommended_allocation_pct": 0.20},
+        )
+        assert alloc_llm == 20000.0
+
+        # Small bankroll test ($300.00):
+        # Tier 1 catalyst (22.4% ratio) -> 22% = $66.00 (maximizes quick win while preserving multi-play capacity)
+        alloc_small_t1 = engine.calculate_dynamic_allocation(
+            available_cash=300.0,
+            ratio_pct=22.4,
+            gemini_strategy=None,
+        )
+        assert alloc_small_t1 == 66.0
+
+        # Tier 2 catalyst (16% ratio) -> 16% = $48.00
+        alloc_small_t2 = engine.calculate_dynamic_allocation(
+            available_cash=300.0,
+            ratio_pct=16.0,
+            gemini_strategy=None,
+        )
+        assert alloc_small_t2 == 48.0
+
+        # Tier 3 catalyst (11% ratio) -> 10% = $30.00
+        alloc_small_t3 = engine.calculate_dynamic_allocation(
+            available_cash=300.0,
+            ratio_pct=11.0,
+            gemini_strategy=None,
+        )
+        assert alloc_small_t3 == 30.0
+
+        # Micro-account boost test ($150 cash): allocates 28% = $42.00
+        alloc_micro = engine.calculate_dynamic_allocation(
+            available_cash=150.0,
+            ratio_pct=22.4,
+            gemini_strategy=None,
+        )
+        assert alloc_micro == 42.0
+
+    def test_bulk_approvals_api(self, client):
+        # Seed test companies
+        with db.get_connection() as conn:
+            db.upsert_company(conn, Company(ticker="KBR", company_name="KBR Inc", market_cap=8_000_000_000.0))
+            db.upsert_company(conn, Company(ticker="CACI", company_name="CACI Int", market_cap=9_000_000_000.0))
+
+        # Trigger bulk auto-trade approval for all qualified companies
+        res = client.post("/api/trader/approvals/bulk?is_approved=1&auto_trade_enabled=1")
+        assert res.status_code == 200
+        data = res.json()
+        assert data["ok"] is True
+        assert data["updated_count"] >= 2
+
+        # Verify all listed companies now have auto_trade_enabled = 1
+        list_res = client.get("/api/trader/approvals")
+        assert list_res.status_code == 200
+        approvals = list_res.json()
+        assert len(approvals) >= 1
+        assert all(a["auto_trade_enabled"] == 1 for a in approvals)
+
+        # Disable all
+        dis_res = client.post("/api/trader/approvals/bulk?is_approved=1&auto_trade_enabled=0")
+        assert dis_res.status_code == 200
+        list_res2 = client.get("/api/trader/approvals")
+        approvals2 = list_res2.json()
+        assert all(a["auto_trade_enabled"] == 0 for a in approvals2)
+
+    def test_bankroll_reset_api(self, client):
+        # Set bankroll to $100,000
+        res = client.post("/api/trader/bankroll/reset?amount=100000.0")
+        assert res.status_code == 200
+        assert res.json()["ok"] is True
+        assert res.json()["paper_cash_balance"] == 100000.0
+
+        # Verify in trader stats
+        stats_res = client.get("/api/trader/status")
+        assert stats_res.status_code == 200
+        assert stats_res.json()["paper_cash_balance"] == 100000.0
+
+        # Test small bankroll reset ($300.00)
+        res_300 = client.post("/api/trader/bankroll/reset?amount=300.0")
+        assert res_300.status_code == 200
+        assert res_300.json()["paper_cash_balance"] == 300.0
+        stats_300 = client.get("/api/trader/status").json()
+        assert stats_300["paper_cash_balance"] == 300.0
+
+    def test_cash_balance_credited_on_close(self, client):
+        # Set clean $100k balance
+        client.post("/api/trader/bankroll/reset?amount=100000.0")
+
+        # Stage and buy an order
+        with db.get_connection() as conn:
+            award = Award(
+                source="sam_gov",
+                source_award_id="CASH-TEST-1",
+                awardee_name_raw="KBR Inc",
+                agency="Army",
+                posted_date=date(2026, 9, 1),
+                award_amount=2_000_000_000.0,
+                obligated_amount=2_000_000_000.0,
+                ticker="KBR",
+            )
+            award_id, _ = db.upsert_award(conn, award)
+            company = Company(ticker="KBR", company_name="KBR Inc", market_cap=8_000_000_000.0)
+            db.upsert_company(conn, company)
+
+        with patch.object(PaperBroker, "get_current_price", return_value=50.0):
+            stage_res = client.post(f"/api/trader/stage_catalyst/{award_id}")
+            order = stage_res.json()
+            order_id = order["id"]
+            total_cost = order["total_cost"]
+
+            # Approve order: cash decreases by total_cost
+            appr_res = client.post(f"/api/trader/orders/{order_id}/approve")
+            assert appr_res.status_code == 200
+
+            stats_after_buy = client.get("/api/trader/status").json()
+            assert stats_after_buy["paper_cash_balance"] == round(100000.0 - total_cost, 2)
+
+            pos_res = client.get("/api/trader/positions?status=OPEN")
+            pos_id = pos_res.json()[0]["id"]
+            shares = pos_res.json()[0]["shares"]
+
+        # Close position at $55.0 (+10% profit)
+        with patch.object(PaperBroker, "get_current_price", return_value=55.0):
+            close_res = client.post(f"/api/trader/positions/{pos_id}/close")
+            assert close_res.status_code == 200
+            exit_price = close_res.json()["exit_price"]
+
+            stats_after_close = client.get("/api/trader/status").json()
+            expected_cash = round(100000.0 - total_cost + (exit_price * shares), 2)
+            assert stats_after_close["paper_cash_balance"] == expected_cash
+            assert stats_after_close["paper_cash_balance"] > 100000.0  # Net profit realized
+

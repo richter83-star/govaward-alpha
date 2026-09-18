@@ -90,3 +90,26 @@ class TestSamGovDescriptionFallback:
         award = _parse_opportunity(opp)
         assert award is not None
         assert award.award_amount == 95_000_000.0
+
+
+class TestExtractObligatedAmount:
+    def test_standard_dod_prose(self):
+        from govaward_alpha.normalize import extract_obligated_amount
+
+        text = (
+            "Fiscal 2024 defense-wide research and development funds in the amount "
+            "of $24,500,000 are being obligated at the time of award."
+        )
+        assert extract_obligated_amount(text) == 24_500_000.0
+
+    def test_amount_before_obligated_phrase(self):
+        from govaward_alpha.normalize import extract_obligated_amount
+
+        text = "$15,000,000 is being obligated at the time of award."
+        assert extract_obligated_amount(text) == 15_000_000.0
+
+    def test_colon_format(self):
+        from govaward_alpha.normalize import extract_obligated_amount
+
+        text = "Obligated at the time of award: $18,000,000."
+        assert extract_obligated_amount(text) == 18_000_000.0

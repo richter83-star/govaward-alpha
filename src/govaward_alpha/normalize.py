@@ -110,6 +110,8 @@ def extract_obligated_amount(text: str) -> float | None:
         r"obligated\s+at\s+(?:the\s+)?time\s+of\s+award[:\s]+(\$?[\d,]+(?:\.\d+)?(?:\s*(?:million|billion|thousand|[mMbBkK]))?)",
         r"funded\s+(?:amount|at)[:\s]+(\$?[\d,]+(?:\.\d+)?(?:\s*(?:million|billion|thousand|[mMbBkK]))?)",
         r"initial\s+(?:obligation|obligated)[:\s]+(\$?[\d,]+(?:\.\d+)?(?:\s*(?:million|billion|thousand|[mMbBkK]))?)",
+        r"funds\s+in\s+the\s+amount\s+of\s+(\$?[\d,]+(?:\.\d+)?(?:\s*(?:million|billion|thousand|[mMbBkK]))?)\s+(?:are|is)\s+(?:being\s+)?obligated",
+        r"(\$?[\d,]+(?:\.\d+)?(?:\s*(?:million|billion|thousand|[mMbBkK]))?)\s+(?:are|is)\s+(?:being\s+)?obligated\s+at\s+(?:the\s+)?time\s+of\s+award",
     ]
     for pat in patterns:
         m = re.search(pat, text, re.IGNORECASE)
@@ -158,14 +160,70 @@ def has_defense_keywords(text: str) -> bool:
     return bool(_DEFENSE_KEYWORDS.search(text))
 
 
-def detect_flags(description: str, award_type: str = "") -> dict[str, bool]:
-    text = f"{description} {award_type}"
+from datetime import date
+
+
+def extract_piid_fiscal_year(contract_id: str) -> int | None:
+    """Extract the 4-digit fiscal year from a Federal Procurement Instrument Identifier (PIID)
+    pursuant to FAR 4.1603 (e.g. 80JSC017C0006 -> 2017, 75N93019C00069 -> 2019,
+    FA8650-19-C-5212 -> 2019, W9124P-26-C-0001 -> 2026).
+    """
+    if not contract_id or len(contract_id) < 8:
+        return None
+    cleaned = contract_id.strip().upper()
+    # 1. FAR standard: [Agency 2-8 chars][-?][2-digit FY][-?][1-char Type][-?][Serial 3+ chars]
+    m = re.search(r"^[A-Z0-9]{2,8}(?:-[A-Z0-9]{2,6})?-?([0-9]{2})-?([A-Z])-?([A-Z0-9]{3,})", cleaned)
+    if m:
+        yy = int(m.group(1))
+        return 2000 + yy if yy < 80 else 1900 + yy
+
+    # 2. Embedded hyphenated standard PIID anywhere in text
+    m2 = re.search(r"\b[A-Z0-9]{4,8}-([0-9]{2})-[A-Z]-[A-Z0-9]{4,}\b", cleaned)
+    if m2:
+        yy = int(m2.group(1))
+        return 2000 + yy if yy < 80 else 1900 + yy
+
+    return None
+
+
+def detect_flags(
+    description: str,
+    award_type: str = "",
+    contract_number: str = "",
+    period_start: date | None = None,
+    award_date: date | None = None,
+) -> dict[str, bool]:
+    text = f"{description} {award_type} {contract_number}"
+    is_idiq = bool(_IDIQ_KEYWORDS.search(text))
+    is_mod_keyword = bool(_MODIFICATION_KEYWORDS.search(text))
+    is_option = bool(_OPTION_KEYWORDS.search(text))
+    is_ceiling = bool(_CEILING_KEYWORDS.search(text))
+    has_defense = bool(_DEFENSE_KEYWORDS.search(text))
+
+    # Detect legacy contract vehicle via FAR 4.1603 PIID fiscal year or period of performance
+    is_legacy = False
+    piid_fy = extract_piid_fiscal_year(contract_number)
+    if not piid_fy:
+        piid_fy = extract_piid_fiscal_year(description)
+
+    ref_year = award_date.year if award_date else 2026
+    if piid_fy and piid_fy < (ref_year - 1):
+        is_legacy = True
+
+    if period_start and award_date:
+        if (award_date - period_start).days > 90:
+            is_legacy = True
+
+    # Legacy contract transactions are de-facto modifications/renewals
+    is_modification = is_mod_keyword or is_legacy
+
     return {
-        "is_idiq": bool(_IDIQ_KEYWORDS.search(text)),
-        "is_modification": bool(_MODIFICATION_KEYWORDS.search(text)),
-        "is_option_exercise": bool(_OPTION_KEYWORDS.search(text)),
-        "is_ceiling_only": bool(_CEILING_KEYWORDS.search(text)),
-        "has_defense_keywords": bool(_DEFENSE_KEYWORDS.search(text)),
+        "is_idiq": is_idiq,
+        "is_modification": is_modification,
+        "is_option_exercise": is_option,
+        "is_ceiling_only": is_ceiling,
+        "has_defense_keywords": has_defense,
+        "is_legacy_contract": is_legacy,
     }
 
 

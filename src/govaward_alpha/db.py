@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS awards (
     awardee_name_normalized TEXT    DEFAULT '',
     parent_company_name     TEXT    DEFAULT '',
     ticker                  TEXT,
+    ticker_confidence       TEXT    DEFAULT 'UNRESOLVED',
     agency                  TEXT    DEFAULT '',
     sub_agency              TEXT    DEFAULT '',
     naics                   TEXT    DEFAULT '',
@@ -63,6 +64,7 @@ CREATE TABLE IF NOT EXISTS awards (
     is_modification         INTEGER DEFAULT 0,
     is_option_exercise      INTEGER DEFAULT 0,
     is_ceiling_only         INTEGER DEFAULT 0,
+    is_legacy_contract      INTEGER DEFAULT 0,
     period_start            TEXT,
     period_end              TEXT,
     materiality_score       INTEGER,
@@ -106,7 +108,7 @@ CREATE TABLE IF NOT EXISTS alerts (
     created_at          TEXT    NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_alerts_award_id ON alerts(award_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_alerts_award_id ON alerts(award_id);
 CREATE INDEX IF NOT EXISTS idx_alerts_ticker   ON alerts(ticker);
 
 CREATE TABLE IF NOT EXISTS source_runs (
@@ -161,6 +163,11 @@ CREATE TABLE IF NOT EXISTS orders (
     verdict             TEXT,
     headline            TEXT,
     strategy_note       TEXT,
+    catalyst_velocity   TEXT DEFAULT '',
+    target_holding_days TEXT DEFAULT '',
+    conviction_score    INTEGER DEFAULT 0,
+    broker_order_id     TEXT DEFAULT '',
+    session             TEXT DEFAULT 'REGULAR',              -- REGULAR | EXTENDED_HOURS
     created_at          TEXT    NOT NULL,
     filled_at           TEXT,
     closed_at           TEXT
@@ -186,6 +193,11 @@ CREATE TABLE IF NOT EXISTS positions (
     realized_pnl        REAL    DEFAULT 0.0,
     realized_pnl_pct    REAL    DEFAULT 0.0,
     exit_reason         TEXT    DEFAULT '',              -- TAKE_PROFIT | STOP_LOSS | MANUAL_CLOSE
+    catalyst_velocity   TEXT DEFAULT '',
+    target_holding_days TEXT DEFAULT '',
+    conviction_score    INTEGER DEFAULT 0,
+    broker_order_id     TEXT DEFAULT '',
+    session             TEXT DEFAULT 'REGULAR',          -- REGULAR | EXTENDED_HOURS
     opened_at           TEXT    NOT NULL,
     closed_at           TEXT,
     updated_at          TEXT    NOT NULL
@@ -221,7 +233,32 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE awards ADD COLUMN alert_level TEXT")
         conn.commit()
         logger.info("Migration: added alert_level column to awards")
+    if "ticker_confidence" not in award_cols:
+        conn.execute("ALTER TABLE awards ADD COLUMN ticker_confidence TEXT DEFAULT 'UNRESOLVED'")
+        conn.commit()
+        logger.info("Migration: added ticker_confidence column to awards")
+    if "is_legacy_contract" not in award_cols:
+        conn.execute("ALTER TABLE awards ADD COLUMN is_legacy_contract INTEGER DEFAULT 0")
+        conn.commit()
+        logger.info("Migration: added is_legacy_contract column to awards")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_awards_score ON awards(materiality_score)")
+    conn.commit()
+
+    order_cols = {row[1] for row in conn.execute("PRAGMA table_info(orders)")}
+    if "session" not in order_cols:
+        conn.execute("ALTER TABLE orders ADD COLUMN session TEXT DEFAULT 'REGULAR'")
+        conn.commit()
+        logger.info("Migration: added session column to orders")
+
+    pos_cols = {row[1] for row in conn.execute("PRAGMA table_info(positions)")}
+    if "session" not in pos_cols:
+        conn.execute("ALTER TABLE positions ADD COLUMN session TEXT DEFAULT 'REGULAR'")
+        conn.commit()
+        logger.info("Migration: added session column to positions")
+
+    # Deduplicate alerts and ensure unique index on alerts(award_id)
+    conn.execute("DELETE FROM alerts WHERE id NOT IN (SELECT MIN(id) FROM alerts GROUP BY award_id)")
+    conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_alerts_award_id ON alerts(award_id)")
     conn.commit()
 
     # Ensure default trade_configs row exists
@@ -229,8 +266,30 @@ def _migrate(conn: sqlite3.Connection) -> None:
         INSERT OR IGNORE INTO trade_configs (
             id, engine_mode, default_allocation, min_ratio_pct, min_score,
             take_profit_pct, stop_loss_pct, trailing_stop, paper_cash_balance, updated_at
-        ) VALUES (1, 'PAPER', 1000.0, 10.0, 70, 10.0, 4.0, 0, 50000.0, datetime('now'))
+        ) VALUES (1, 'PAPER', 1000.0, 10.0, 70, 10.0, 4.0, 0, 100000.0, datetime('now'))
     """)
+    conn.commit()
+
+    order_cols = {row[1] for row in conn.execute("PRAGMA table_info(orders)")}
+    if "catalyst_velocity" not in order_cols:
+        conn.execute("ALTER TABLE orders ADD COLUMN catalyst_velocity TEXT DEFAULT ''")
+    if "target_holding_days" not in order_cols:
+        conn.execute("ALTER TABLE orders ADD COLUMN target_holding_days TEXT DEFAULT ''")
+    if "conviction_score" not in order_cols:
+        conn.execute("ALTER TABLE orders ADD COLUMN conviction_score INTEGER DEFAULT 0")
+    if "broker_order_id" not in order_cols:
+        conn.execute("ALTER TABLE orders ADD COLUMN broker_order_id TEXT DEFAULT ''")
+    conn.commit()
+
+    pos_cols = {row[1] for row in conn.execute("PRAGMA table_info(positions)")}
+    if "catalyst_velocity" not in pos_cols:
+        conn.execute("ALTER TABLE positions ADD COLUMN catalyst_velocity TEXT DEFAULT ''")
+    if "target_holding_days" not in pos_cols:
+        conn.execute("ALTER TABLE positions ADD COLUMN target_holding_days TEXT DEFAULT ''")
+    if "conviction_score" not in pos_cols:
+        conn.execute("ALTER TABLE positions ADD COLUMN conviction_score INTEGER DEFAULT 0")
+    if "broker_order_id" not in pos_cols:
+        conn.execute("ALTER TABLE positions ADD COLUMN broker_order_id TEXT DEFAULT ''")
     conn.commit()
 
 
@@ -262,6 +321,7 @@ def _award_to_row(a: Award) -> dict:
         "awardee_name_normalized": a.awardee_name_normalized,
         "parent_company_name": a.parent_company_name,
         "ticker": a.ticker,
+        "ticker_confidence": a.ticker_confidence or "UNRESOLVED",
         "agency": a.agency,
         "sub_agency": a.sub_agency,
         "naics": a.naics,
@@ -275,6 +335,7 @@ def _award_to_row(a: Award) -> dict:
         "is_modification": int(a.is_modification),
         "is_option_exercise": int(a.is_option_exercise),
         "is_ceiling_only": int(a.is_ceiling_only),
+        "is_legacy_contract": int(getattr(a, "is_legacy_contract", False)),
         "period_start": a.period_start.isoformat() if a.period_start else None,
         "period_end": a.period_end.isoformat() if a.period_end else None,
         "materiality_score": a.materiality_score,
@@ -309,17 +370,17 @@ def upsert_award(conn: sqlite3.Connection, award: Award) -> tuple[int, str]:
         cur = conn.execute(
             """INSERT INTO awards
                (source,source_award_id,source_url,posted_date,award_date,
-                awardee_name_raw,awardee_name_normalized,parent_company_name,ticker,
+                awardee_name_raw,awardee_name_normalized,parent_company_name,ticker,ticker_confidence,
                 agency,sub_agency,naics,psc,award_amount,obligated_amount,
                 description,contract_number,award_type,is_idiq,is_modification,
-                is_option_exercise,is_ceiling_only,period_start,period_end,
+                is_option_exercise,is_ceiling_only,is_legacy_contract,period_start,period_end,
                 materiality_score,alert_level,content_hash,created_at,updated_at)
                VALUES
                (:source,:source_award_id,:source_url,:posted_date,:award_date,
-                :awardee_name_raw,:awardee_name_normalized,:parent_company_name,:ticker,
+                :awardee_name_raw,:awardee_name_normalized,:parent_company_name,:ticker,:ticker_confidence,
                 :agency,:sub_agency,:naics,:psc,:award_amount,:obligated_amount,
                 :description,:contract_number,:award_type,:is_idiq,:is_modification,
-                :is_option_exercise,:is_ceiling_only,:period_start,:period_end,
+                :is_option_exercise,:is_ceiling_only,:is_legacy_contract,:period_start,:period_end,
                 :materiality_score,:alert_level,:content_hash,:created_at,:updated_at)""",
             row,
         )
@@ -334,11 +395,13 @@ def upsert_award(conn: sqlite3.Connection, award: Award) -> tuple[int, str]:
                source_url=:source_url, posted_date=:posted_date, award_date=:award_date,
                awardee_name_normalized=:awardee_name_normalized,
                parent_company_name=:parent_company_name, ticker=:ticker,
+               ticker_confidence=:ticker_confidence,
                agency=:agency, sub_agency=:sub_agency, naics=:naics, psc=:psc,
                award_amount=:award_amount, obligated_amount=:obligated_amount,
                description=:description, contract_number=:contract_number,
                award_type=:award_type, is_idiq=:is_idiq, is_modification=:is_modification,
                is_option_exercise=:is_option_exercise, is_ceiling_only=:is_ceiling_only,
+               is_legacy_contract=:is_legacy_contract,
                period_start=:period_start, period_end=:period_end,
                materiality_score=COALESCE(:materiality_score, materiality_score),
                alert_level=COALESCE(:alert_level, alert_level),
@@ -476,7 +539,7 @@ def insert_alert(conn: sqlite3.Connection, alert: AlertRecord) -> int:
     gemini_json = alert.gemini_analysis_json or alert.claude_analysis_json
     claude_json = alert.claude_analysis_json or alert.gemini_analysis_json
     cur = conn.execute(
-        """INSERT INTO alerts
+        """INSERT OR IGNORE INTO alerts
            (award_id,ticker,materiality_score,alert_level,reasons_json,
             sent_console,sent_email,sent_telegram,sent_discord,
             gemini_analysis_json,claude_analysis_json,created_at)
@@ -496,6 +559,9 @@ def insert_alert(conn: sqlite3.Connection, alert: AlertRecord) -> int:
             alert.created_at.isoformat(),
         ),
     )
+    if cur.rowcount == 0:
+        row = conn.execute("SELECT id FROM alerts WHERE award_id=?", (alert.award_id,)).fetchone()
+        return row[0] if row else 0
     return cur.lastrowid
 
 
@@ -680,14 +746,68 @@ def set_company_approval(
     return get_company_approval(conn, ticker) or {}
 
 
+def bulk_set_company_approvals(
+    conn: sqlite3.Connection,
+    is_approved: int = 1,
+    auto_trade_enabled: int = 1,
+    max_market_cap: float = 10_000_000_000.0,
+    max_allocation: float | None = None,
+) -> int:
+    """
+    Bulk authorizes or deauthorizes all qualified small & mid-cap companies (<= max_market_cap)
+    for autonomous auto-trading.
+    """
+    now = utcnow().isoformat()
+    eligible = conn.execute(
+        "SELECT ticker, company_name FROM companies WHERE market_cap IS NULL OR market_cap <= ?",
+        (max_market_cap,),
+    ).fetchall()
+
+    count = 0
+    for r in eligible:
+        ticker = r["ticker"].upper()
+        name = r["company_name"] or ""
+        alloc = max_allocation if max_allocation is not None else 1000.0
+        if max_allocation is not None:
+            conn.execute("""
+                INSERT INTO company_trade_approvals (
+                    ticker, company_name, is_approved, auto_trade_enabled, max_allocation, notes, updated_at
+                ) VALUES (?, ?, ?, ?, ?, 'Bulk updated', ?)
+                ON CONFLICT(ticker) DO UPDATE SET
+                    is_approved=excluded.is_approved,
+                    auto_trade_enabled=excluded.auto_trade_enabled,
+                    max_allocation=excluded.max_allocation,
+                    updated_at=excluded.updated_at
+            """, (ticker, name, is_approved, auto_trade_enabled, alloc, now))
+        else:
+            conn.execute("""
+                INSERT INTO company_trade_approvals (
+                    ticker, company_name, is_approved, auto_trade_enabled, max_allocation, notes, updated_at
+                ) VALUES (?, ?, ?, ?, ?, 'Bulk updated', ?)
+                ON CONFLICT(ticker) DO UPDATE SET
+                    is_approved=excluded.is_approved,
+                    auto_trade_enabled=excluded.auto_trade_enabled,
+                    updated_at=excluded.updated_at
+            """, (ticker, name, is_approved, auto_trade_enabled, alloc, now))
+        count += 1
+    conn.commit()
+    return count
+
+
+def set_paper_cash_balance(conn: sqlite3.Connection, balance: float = 100000.0) -> float:
+    update_trade_config(conn, paper_cash_balance=balance)
+    return balance
+
+
 def insert_order(conn: sqlite3.Connection, order: dict[str, Any]) -> int:
     now = utcnow().isoformat()
     cur = conn.execute("""
         INSERT INTO orders (
             award_id, ticker, side, status, mode, shares, signal_price, fill_price,
             total_cost, take_profit_price, stop_loss_price, trigger_ratio_pct,
-            verdict, headline, strategy_note, created_at, filled_at, closed_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            verdict, headline, strategy_note, catalyst_velocity, target_holding_days,
+            conviction_score, broker_order_id, session, created_at, filled_at, closed_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         order.get("award_id"),
         order["ticker"].upper(),
@@ -704,6 +824,11 @@ def insert_order(conn: sqlite3.Connection, order: dict[str, Any]) -> int:
         order.get("verdict"),
         order.get("headline"),
         order.get("strategy_note"),
+        order.get("catalyst_velocity", ""),
+        order.get("target_holding_days", ""),
+        int(order.get("conviction_score", 0) or 0),
+        order.get("broker_order_id", ""),
+        order.get("session", "REGULAR"),
         order.get("created_at", now),
         order.get("filled_at"),
         order.get("closed_at"),
@@ -737,17 +862,27 @@ def update_order_status(
     status: str,
     fill_price: float | None = None,
     total_cost: float | None = None,
+    broker_order_id: str | None = None,
 ) -> None:
     now = utcnow().isoformat()
     if status == "FILLED":
-        conn.execute("""
-            UPDATE orders SET status=?, fill_price=?, total_cost=?, filled_at=?
-            WHERE id=?
-        """, (status, fill_price, total_cost, now, order_id))
+        if broker_order_id:
+            conn.execute("""
+                UPDATE orders SET status=?, fill_price=?, total_cost=?, broker_order_id=?, filled_at=?
+                WHERE id=?
+            """, (status, fill_price, total_cost, broker_order_id, now, order_id))
+        else:
+            conn.execute("""
+                UPDATE orders SET status=?, fill_price=?, total_cost=?, filled_at=?
+                WHERE id=?
+            """, (status, fill_price, total_cost, now, order_id))
     elif status in ("REJECTED", "CANCELLED"):
         conn.execute("UPDATE orders SET status=?, closed_at=? WHERE id=?", (status, now, order_id))
     else:
-        conn.execute("UPDATE orders SET status=? WHERE id=?", (status, order_id))
+        if broker_order_id:
+            conn.execute("UPDATE orders SET status=?, broker_order_id=? WHERE id=?", (status, broker_order_id, order_id))
+        else:
+            conn.execute("UPDATE orders SET status=? WHERE id=?", (status, order_id))
     conn.commit()
 
 
@@ -757,8 +892,9 @@ def insert_position(conn: sqlite3.Connection, pos: dict[str, Any]) -> int:
         INSERT INTO positions (
             order_id, ticker, mode, shares, entry_price, current_price,
             take_profit_price, stop_loss_price, unrealized_pnl, unrealized_pnl_pct,
-            status, opened_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            status, catalyst_velocity, target_holding_days, conviction_score,
+            broker_order_id, session, opened_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         pos.get("order_id"),
         pos["ticker"].upper(),
@@ -771,6 +907,11 @@ def insert_position(conn: sqlite3.Connection, pos: dict[str, Any]) -> int:
         pos.get("unrealized_pnl", 0.0),
         pos.get("unrealized_pnl_pct", 0.0),
         pos.get("status", "OPEN"),
+        pos.get("catalyst_velocity", ""),
+        pos.get("target_holding_days", ""),
+        int(pos.get("conviction_score", 0) or 0),
+        pos.get("broker_order_id", ""),
+        pos.get("session", "REGULAR"),
         pos.get("opened_at", now),
         now,
     ))

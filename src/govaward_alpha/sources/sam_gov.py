@@ -244,7 +244,13 @@ def _parse_opportunity(opp: dict) -> Award | None:
         return None
 
     source_url = f"https://sam.gov/opp/{source_id}/view"
-    flags = detect_flags(description, opp.get("type") or "")
+    contract_num = opp.get("solicitationNumber") or source_id or ""
+    flags = detect_flags(
+        description,
+        opp.get("type") or "",
+        contract_number=contract_num,
+        award_date=award_date or posted_date,
+    )
 
     return Award(
         source="sam_gov",
@@ -261,12 +267,13 @@ def _parse_opportunity(opp: dict) -> Award | None:
         award_amount=award_amount,
         obligated_amount=obligated,
         description=description,
-        contract_number=opp.get("solicitationNumber") or "",
+        contract_number=contract_num,
         award_type=opp.get("type") or "Award Notice",
         is_idiq=flags["is_idiq"],
         is_modification=flags["is_modification"],
         is_option_exercise=flags["is_option_exercise"],
         is_ceiling_only=flags["is_ceiling_only"],
+        is_legacy_contract=flags.get("is_legacy_contract", False),
         content_hash=content_hash({
             "source": "sam_gov",
             "source_award_id": source_id,

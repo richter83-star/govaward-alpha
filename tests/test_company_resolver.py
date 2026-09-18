@@ -62,6 +62,43 @@ class TestResolveSecTickers:
         result = resolve("Completely Unknown Private Entity LLC")
         assert result["ticker"] is None
         assert result["resolution_method"] == "unresolved"
+        assert result["confidence"] == "UNRESOLVED"
+
+
+class TestResolutionConfidenceTiers:
+    from govaward_alpha.models import ResolutionConfidence
+
+    def test_manual_override_confidence(self):
+        result = resolve("Palantir USG Inc")
+        assert result["ticker"] == "PLTR"
+        assert result["confidence"] == "MANUAL_OVERRIDE"
+
+    MOCK_MAP = {
+        "acme": {"ticker": "ACME", "company_name": "Acme Corp", "cik": "1"},
+        "lockheed martin": {"ticker": "LMT", "company_name": "Lockheed Martin Corp", "cik": "2"},
+    }
+
+    @patch("govaward_alpha.enrich.company_resolver.get_ticker_map", return_value=MOCK_MAP)
+    @patch("govaward_alpha.enrich.company_resolver.get_overrides", return_value={})
+    def test_sec_exact_confidence(self, mock_ov, mock_map):
+        result = resolve("Acme Inc.")
+        assert result["confidence"] == "HIGH_CONFIDENCE"
+
+    @patch("govaward_alpha.enrich.company_resolver.get_ticker_map", return_value=MOCK_MAP)
+    @patch("govaward_alpha.enrich.company_resolver.get_overrides", return_value={})
+    def test_sec_fuzzy_confidence(self, mock_ov, mock_map):
+        result = resolve("Lockheed Martin Corporation")
+        assert result["confidence"] in ("HIGH_CONFIDENCE", "MEDIUM_CONFIDENCE")
+
+    @patch("govaward_alpha.enrich.company_resolver.get_ticker_map", return_value={})
+    @patch("govaward_alpha.enrich.company_resolver.get_overrides", return_value={})
+    @patch(
+        "govaward_alpha.enrich.company_resolver._guess_ticker_yfinance",
+        return_value={"ticker": "GUESS", "parent_company_name": "Guess Co", "resolution_method": "yf", "confidence": "LOW_CONFIDENCE"}
+    )
+    def test_yfinance_low_confidence(self, mock_yf, mock_ov, mock_map):
+        result = resolve("Ambiguous Entity LLC")
+        assert result["confidence"] == "LOW_CONFIDENCE"
 
 
 class TestFuzzyMatchGuards:
@@ -154,3 +191,22 @@ class TestAddOverride:
         assert any("fictional" in k for k in keys)
         matched = next(k for k in keys if "fictional" in k)
         assert data["overrides"][matched]["ticker"] == "FICT"
+
+
+class TestOverrideGuards:
+    """Ensure generic substrings in overrides do not trigger false positive matches."""
+
+    @patch("govaward_alpha.enrich.company_resolver.get_ticker_map", return_value={})
+    @patch("govaward_alpha.enrich.company_resolver._guess_ticker_yfinance", return_value=None)
+    def test_generic_suffix_does_not_match_override(self, mock_yf, mock_map):
+        # "accenture federal services" in overrides must not match "Federal Services Inc"
+        res = resolve("Federal Services Inc")
+        assert res["ticker"] is None
+        assert res["confidence"] == "UNRESOLVED"
+
+    @patch("govaward_alpha.enrich.company_resolver.get_ticker_map", return_value={})
+    @patch("govaward_alpha.enrich.company_resolver._guess_ticker_yfinance", return_value=None)
+    def test_generic_security_solutions_does_not_match_kratos(self, mock_yf, mock_map):
+        res = resolve("Security Solutions LLC")
+        assert res["ticker"] is None
+        assert res["confidence"] == "UNRESOLVED"

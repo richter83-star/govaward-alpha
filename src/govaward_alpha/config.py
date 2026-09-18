@@ -98,6 +98,12 @@ class Settings(BaseSettings):
     discord_enabled: bool = Field(default=False, alias="DISCORD_ENABLED")
     discord_webhook_url: str = Field(default="", alias="DISCORD_WEBHOOK_URL")
 
+    # Alpaca Brokerage API
+    alpaca_api_key: str = Field(default="", alias="ALPACA_API_KEY")
+    alpaca_secret_key: str = Field(default="", alias="ALPACA_SECRET_KEY")
+    alpaca_endpoint: str = Field(default="https://api.alpaca.markets", alias="ALPACA_ENDPOINT")
+    alpaca_live: bool = Field(default=False, alias="ALPACA_LIVE")
+
     @property
     def cache_path(self) -> Path:
         p = Path(self.cache_dir)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import Callable
 
@@ -65,6 +66,7 @@ def run_source(
 
                 # Enrich with company/ticker/market data
                 enriched_award, company = enrich_award(award, conn)
+                enriched_award = enriched_award.model_copy(update={"id": award_id})
                 # Score
                 result = score_award(enriched_award, company)
                 enriched_award.materiality_score = result.score
@@ -72,10 +74,11 @@ def run_source(
 
                 # Persist enriched fields and score back to awards row
                 conn.execute(
-                    "UPDATE awards SET ticker=?, parent_company_name=?, awardee_name_normalized=?, "
+                    "UPDATE awards SET ticker=?, ticker_confidence=?, parent_company_name=?, awardee_name_normalized=?, "
                     "materiality_score=?, alert_level=? WHERE id=?",
                     (
                         enriched_award.ticker,
+                        enriched_award.ticker_confidence,
                         enriched_award.parent_company_name,
                         enriched_award.awardee_name_normalized,
                         result.score,

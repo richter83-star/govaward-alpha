@@ -399,6 +399,130 @@ def backfill_claude_cmd(
 
 
 # ---------------------------------------------------------------------------
+# alpaca-check
+# ---------------------------------------------------------------------------
+
+@app.command("alpaca-check")
+def alpaca_check() -> None:
+    """Verify Alpaca API connection, credentials, buying power, and market clock."""
+    from govaward_alpha.services.alpaca_broker import AlpacaBroker
+    broker = AlpacaBroker()
+    if not broker.is_configured:
+        console.print("[red]Alpaca API credentials are not configured in .env[/red]")
+        console.print("Please set ALPACA_API_KEY, ALPACA_SECRET_KEY, and ALPACA_ENDPOINT.")
+        raise typer.Exit(1)
+
+    console.print(f"[bold]Connecting to Alpaca ({'PAPER' if broker.is_paper else 'LIVE'})...[/bold]")
+    res = broker.verify_credentials()
+    if not res.get("ok"):
+        console.print(f"[bold red]Alpaca Verification FAILED:[/bold red] {res.get('error')}")
+        raise typer.Exit(1)
+
+    clock = broker.get_clock()
+    t = Table(title="Alpaca Account Health & Readiness")
+    t.add_column("Property", style="cyan")
+    t.add_column("Value", style="bold green")
+    t.add_row("Environment", "PAPER SIMULATION" if res.get("is_paper") else "LIVE CAPITAL")
+    t.add_row("Account Number", res.get("account_number", "N/A"))
+    t.add_row("Status", res.get("status", "N/A"))
+    t.add_row("Buying Power", f"${res.get('buying_power', 0.0):,.2f}")
+    t.add_row("Cash Balance", f"${res.get('cash', 0.0):,.2f}")
+    t.add_row("Portfolio Value", f"${res.get('portfolio_value', 0.0):,.2f}")
+    t.add_row("Pattern Day Trader", str(res.get("pattern_day_trader", False)))
+    t.add_row("Daytrade Count", str(res.get("daytrade_count", 0)))
+    t.add_row("Trading Blocked", str(res.get("trading_blocked", False)))
+    t.add_row("Market Open Now", "YES" if clock.get("is_open") else "NO (Extended Hours Active)")
+    console.print(t)
+
+
+# ---------------------------------------------------------------------------
+# trade-prune
+# ---------------------------------------------------------------------------
+
+@app.command("trade-prune")
+def trade_prune() -> None:
+    """Prune legacy contract and illiquid positions, refunding capital back to paper balance."""
+    _require_db()
+    from govaward_alpha.db import get_connection, get_trade_config
+    from govaward_alpha.services.trade_engine import trade_engine
+    with get_connection() as conn:
+        pruned = trade_engine.prune_disqualified_positions(conn)
+        cfg = get_trade_config(conn)
+        console.print(f"[bold green]Pruned {len(pruned)} disqualified positions.[/bold green]")
+        for p in pruned:
+            console.print(f"  • Closed {p['ticker']} (#{p['id']}) - Reason: {p['exit_reason']}")
+        console.print(f"Restored Paper Cash Balance: [bold cyan]${cfg.get('paper_cash_balance', 0.0):,.2f}[/bold cyan]")
+
+
+# ---------------------------------------------------------------------------
+# pentagon-sniper
+# ---------------------------------------------------------------------------
+
+@app.command("pentagon-sniper")
+def pentagon_sniper_cmd(
+    watch: bool = typer.Option(False, "--watch", "-w", help="Continuous polling during 4:55–5:30 PM ET drop window"),
+    file: Optional[str] = typer.Option(None, "--file", "-f", help="Ingest local DoD contract HTML/text file"),
+    lookback: int = typer.Option(1, "--lookback", "-l", help="Days of DoD articles to scan"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Evaluate alpha setups without placing real/paper orders"),
+    interval: int = typer.Option(15, "--interval", "-i", help="Seconds between polls in watch mode"),
+) -> None:
+    """Execute the 5:00 PM ET Pentagon Contract Digest Sniper for extended-hours alpha trades."""
+    _require_db()
+    from govaward_alpha.db import get_connection
+    from govaward_alpha.services.pentagon_sniper import pentagon_sniper
+    from govaward_alpha.timeutil import get_eastern_time, get_market_session, is_pentagon_drop_window
+
+    et = get_eastern_time()
+    session = get_market_session()
+    in_window = is_pentagon_drop_window()
+
+    console.print("[bold cyan]Pentagon DoD Digest Sniper[/bold cyan]")
+    console.print(f"Current Time (ET): [bold]{et.strftime('%Y-%m-%d %H:%M:%S')}[/bold]")
+    console.print(f"Market Session: [bold green]{session}[/bold green]")
+    window_color = "green" if in_window else "yellow"
+    window_status = "YES (5:00 PM ET Drop Window Active)" if in_window else "STANDBY (Drop window: 4:55–5:30 PM ET)"
+    console.print(f"Drop Window: [{window_color}]{window_status}[/{window_color}]")
+
+    with get_connection() as conn:
+        if watch:
+            console.print("[bold magenta]Entering continuous watch loop... Press Ctrl+C to stop.[/bold magenta]")
+            def _pulse(msg: str):
+                console.print(msg)
+            pentagon_sniper.watch(
+                conn=conn,
+                poll_interval_seconds=interval,
+                dry_run=dry_run,
+                file_path=file,
+                on_pulse=_pulse,
+            )
+        else:
+            console.print("Running single sniper pass...")
+            res = pentagon_sniper.snipe(
+                conn=conn,
+                file_path=file,
+                lookback_days=lookback,
+                dry_run=dry_run,
+            )
+            t = Table(title="Pentagon Sniper Execution Report")
+            t.add_column("Metric", style="cyan")
+            t.add_column("Value", style="bold")
+            t.add_row("Awards Detected", str(res["awards_detected"]))
+            t.add_row("New Awards Inserted", str(res["inserted_awards"]))
+            t.add_row("Tickers Matched", ", ".join(res["tickers_matched"][:10]) or "None")
+            t.add_row("Alpha Plays Detected", str(len(res["alpha_plays"])))
+            t.add_row("Orders Staged / Executed", str(len(res["orders_placed"])))
+            if res.get("errors"):
+                t.add_row("Errors", "\n".join(res["errors"]))
+            console.print(t)
+
+            if res["alpha_plays"]:
+                console.print("[bold green]Alpha Plays Identified:[/bold green]")
+                for ap in res["alpha_plays"]:
+                    console.print(f"  • [bold]{ap['ticker']}[/bold] (${ap['amount']:,.0f}) - {ap['ratio_pct']:.1f}% of Cap - {ap['reason']}")
+
+
+
+# ---------------------------------------------------------------------------
 # dashboard
 # ---------------------------------------------------------------------------
 

@@ -18,7 +18,9 @@ import urllib.request
 import urllib.error
 from datetime import date, timedelta
 from io import BytesIO
+from pathlib import Path
 from typing import Any
+
 
 from bs4 import BeautifulSoup
 
@@ -314,12 +316,19 @@ def _parse_block(block: str, source_url: str, article_date: date, min_amount: fl
         contract_number = cn_match.group(1)
 
     description = block[:1500]
-    flags = detect_flags(description)
+    flags = detect_flags(
+        description,
+        contract_number=contract_number,
+        award_date=article_date,
+    )
 
     source_id = content_hash({
         "url": source_url,
         "awardee": awardee_raw,
         "amount": award_amount,
+        "contract_number": contract_number,
+        "sub_agency": sub_agency,
+        "desc_slug": description[:120].strip().lower(),
         "date": str(article_date),
     })
 
@@ -342,6 +351,7 @@ def _parse_block(block: str, source_url: str, article_date: date, min_amount: fl
         is_modification=flags["is_modification"],
         is_option_exercise=flags["is_option_exercise"],
         is_ceiling_only=flags["is_ceiling_only"],
+        is_legacy_contract=flags.get("is_legacy_contract", False),
         content_hash=content_hash({
             "source": "defense_daily",
             "awardee": awardee_raw,

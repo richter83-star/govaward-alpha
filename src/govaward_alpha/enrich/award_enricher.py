@@ -29,11 +29,16 @@ def enrich_award(award: Award, conn: sqlite3.Connection) -> tuple[Award, Company
     """
     # Resolve ticker
     resolution = resolve(award.awardee_name_raw)
-    ticker = resolution["ticker"]
+    ticker = resolution.get("ticker")
+    confidence = resolution.get("confidence")
+    if not confidence:
+        from govaward_alpha.models import ResolutionConfidence
+        confidence = ResolutionConfidence.HIGH_CONFIDENCE if ticker else ResolutionConfidence.UNRESOLVED
 
     enriched = award.model_copy(update={
         "ticker": ticker,
-        "parent_company_name": resolution["parent_company_name"] or award.awardee_name_raw,
+        "parent_company_name": resolution.get("parent_company_name") or award.awardee_name_raw,
+        "ticker_confidence": confidence,
     })
 
     if not ticker:
@@ -91,6 +96,10 @@ def should_alert(
 
     if not award.ticker:
         return False, "No resolved ticker"
+
+    # Reject low-confidence heuristic guesses unless explicitly on watchlist
+    if award.ticker_confidence == "LOW_CONFIDENCE" and not on_watchlist:
+        return False, "Low-confidence ticker resolution"
 
     # Mega-cap hard ignore (unless on watchlist)
     if company and company.market_cap and company.market_cap > market_cap_max and not on_watchlist:

@@ -220,7 +220,13 @@ def _parse_result(item: dict[str, Any]) -> Award | None:
     psc = str(item.get("PSC Code") or "")
     award_type = item.get("Award Type") or item.get("Contract Award Type") or ""
 
-    flags = detect_flags(description, award_type)
+    flags = detect_flags(
+        description,
+        award_type,
+        contract_number=str(award_id),
+        period_start=start_date,
+        award_date=base_date,
+    )
 
     source_url = f"https://www.usaspending.gov/award/{award_id}/"
 
@@ -239,7 +245,7 @@ def _parse_result(item: dict[str, Any]) -> Award | None:
         award_amount=award_amount,
         obligated_amount=obligated,
         description=description,
-        contract_number="",
+        contract_number=str(award_id),
         award_type=award_type,
         period_start=start_date,
         period_end=end_date,
@@ -247,6 +253,7 @@ def _parse_result(item: dict[str, Any]) -> Award | None:
         is_modification=flags["is_modification"],
         is_option_exercise=flags["is_option_exercise"],
         is_ceiling_only=flags["is_ceiling_only"],
+        is_legacy_contract=flags.get("is_legacy_contract", False),
         content_hash=content_hash({
             "source": "usaspending",
             "award_id": str(award_id),

@@ -97,9 +97,27 @@ class TestRunSource:
     ):
         scan_service.run_source("stub", lambda: [_award()])
         with db.get_connection() as conn:
-            row = conn.execute("SELECT ticker, parent_company_name FROM awards").fetchone()
+            row = conn.execute("SELECT ticker, parent_company_name, ticker_confidence FROM awards").fetchone()
         assert row["ticker"] == "KTOS"
         assert row["parent_company_name"] == "Kratos Defense"
+        assert row["ticker_confidence"] in ("HIGH_CONFIDENCE", "MANUAL_OVERRIDE")
+
+    def test_alert_idempotency_at_database_level(self, initialised_db):
+        from govaward_alpha.models import AlertRecord
+        with db.get_connection() as conn:
+            award = _award("A-UNIQUE")
+            award_id, _ = db.upsert_award(conn, award)
+            alert = AlertRecord(
+                award_id=award_id,
+                ticker="KTOS",
+                materiality_score=85,
+                alert_level="RED",
+            )
+            id1 = db.insert_alert(conn, alert)
+            id2 = db.insert_alert(conn, alert)
+            assert id1 == id2
+            count = conn.execute("SELECT COUNT(*) FROM alerts WHERE award_id=?", (award_id,)).fetchone()[0]
+            assert count == 1
 
     def test_market_data_is_cached_in_companies(self, initialised_db, stub_pipeline):
         scan_service.run_source("stub", lambda: [_award()])

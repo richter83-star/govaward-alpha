@@ -111,8 +111,9 @@ def score_award(award: Award, company: Company | None) -> ScoreResult:
     else:
         breakdown["bonus_small_cap"] = 0
 
-    # New award (not modification)
-    if not award.is_modification and not award.is_option_exercise:
+    # New award (not modification, not option exercise, not legacy contract)
+    is_legacy = getattr(award, "is_legacy_contract", False)
+    if not award.is_modification and not award.is_option_exercise and not is_legacy:
         score += 10
         breakdown["bonus_new_award"] = 10
         reasons.append("New award, not a modification or option exercise.")
@@ -150,13 +151,21 @@ def score_award(award: Award, company: Company | None) -> ScoreResult:
     else:
         breakdown["penalty_idiq_low_obligated"] = 0
 
-    # Modification only
-    if award.is_modification:
+    # Legacy contract vehicle or modification penalty
+    if is_legacy:
+        penalty = 30
+        score -= penalty
+        breakdown["penalty_legacy_contract"] = -penalty
+        breakdown["penalty_modification"] = 0
+        reasons.append("Legacy contract vehicle (> 1 year old) — ongoing baseline program, not net-new revenue.")
+    elif award.is_modification:
         penalty = 10
         score -= penalty
+        breakdown["penalty_legacy_contract"] = 0
         breakdown["penalty_modification"] = -penalty
         reasons.append("Award is a modification — incremental, not a new contract.")
     else:
+        breakdown["penalty_legacy_contract"] = 0
         breakdown["penalty_modification"] = 0
 
     # Clamp

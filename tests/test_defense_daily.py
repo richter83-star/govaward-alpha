@@ -162,3 +162,16 @@ class TestParseArticle:
         awards = _parse_article(ARTICLE_HTML, "https://example.gov/article/1", ARTICLE_DATE)
         assert all(a.source_url == "https://example.gov/article/1" for a in awards)
         assert len({a.source_award_id for a in awards}) == len(awards)
+
+    def test_same_company_same_amount_different_contracts_do_not_collide(self):
+        multi_html = """
+        <html><body><article>
+        <p>Raytheon Co., Tucson, Arizona, is being awarded a $75,000,000 contract N00019-26-C-0010 for Navy radar systems.</p>
+        <p>Raytheon Co., Tucson, Arizona, is being awarded a $75,000,000 contract FA8620-26-C-0020 for Air Force sensor suites.</p>
+        </article></body></html>
+        """
+        awards = _parse_article(multi_html, "https://example.gov/article/same-day", ARTICLE_DATE)
+        assert len(awards) == 2
+        assert awards[0].source_award_id != awards[1].source_award_id
+        assert {a.contract_number for a in awards} == {"N00019-26-C-0010", "FA8620-26-C-0020"}
+

@@ -5,9 +5,19 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from govaward_alpha.timeutil import utcnow
+
+
+class ResolutionConfidence:
+    """Explicit confidence tiers for company name → ticker resolution."""
+
+    MANUAL_OVERRIDE = "MANUAL_OVERRIDE"  # Verified human mapping in yaml
+    HIGH_CONFIDENCE = "HIGH_CONFIDENCE"  # Exact SEC CIK match or very high-score fuzzy
+    MEDIUM_CONFIDENCE = "MEDIUM_CONFIDENCE"  # Guarded SEC fuzzy match
+    LOW_CONFIDENCE = "LOW_CONFIDENCE"    # Heuristic guess (e.g. yfinance search)
+    UNRESOLVED = "UNRESOLVED"            # No ticker resolved
 
 
 class Award(BaseModel):
@@ -28,6 +38,7 @@ class Award(BaseModel):
     awardee_name_normalized: str = ""
     parent_company_name: str = ""
     ticker: str | None = None
+    ticker_confidence: str = ResolutionConfidence.UNRESOLVED
 
     # Contracting agency
     agency: str = ""
@@ -48,6 +59,7 @@ class Award(BaseModel):
     is_modification: bool = False
     is_option_exercise: bool = False
     is_ceiling_only: bool = False
+    is_legacy_contract: bool = False
 
     # Period of performance
     period_start: date | None = None
@@ -64,6 +76,14 @@ class Award(BaseModel):
     content_hash: str = ""
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)
+
+    @model_validator(mode="after")
+    def _sync_confidence(self) -> Award:
+        if self.ticker and self.ticker_confidence == ResolutionConfidence.UNRESOLVED:
+            self.ticker_confidence = ResolutionConfidence.HIGH_CONFIDENCE
+        elif not self.ticker:
+            self.ticker_confidence = ResolutionConfidence.UNRESOLVED
+        return self
 
 
 class Company(BaseModel):
