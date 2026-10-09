@@ -25,6 +25,13 @@ from govaward_alpha.services.trade_engine import AlphaPlayDetector, trade_engine
 from govaward_alpha.sources import defense_daily
 from govaward_alpha.timeutil import get_eastern_time, get_market_session, is_extended_hours, is_pentagon_drop_window
 
+
+def in_evening_watch(dt: datetime | None = None) -> bool:
+    """Weekdays 4:45–7:30 PM ET: when the cron-driven sniper is allowed to touch the network."""
+    et = get_eastern_time(dt)
+    return et.weekday() < 5 and (16, 45) <= (et.hour, et.minute) <= (19, 30)
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -36,12 +43,88 @@ class PentagonSniper:
         self.drop_dir = drop_dir or (settings.data_dir / "pentagon_drops")
         self.drop_dir.mkdir(parents=True, exist_ok=True)
 
+    # A drop older than this is stale: it was either processed already or is not
+    # today's page. (Processed drops are also moved into ``processed/``.)
+    MAX_DROP_AGE_HOURS = 20
+
     def find_latest_local_drop(self) -> Path | None:
-        """Find the most recent file in the pentagon_drops directory."""
+        """The newest *fresh* unprocessed file in the pentagon_drops directory."""
         candidates = list(self.drop_dir.glob("*.html")) + list(self.drop_dir.glob("*.htm")) + list(self.drop_dir.glob("*.txt"))
+        cutoff = time.time() - self.MAX_DROP_AGE_HOURS * 3600
+        candidates = [p for p in candidates if p.stat().st_mtime >= cutoff]
         if not candidates:
             return None
         return max(candidates, key=lambda p: p.stat().st_mtime)
+
+    # -- article state: which RSS articles were fetched, blocked, or covered by a drop
+    @property
+    def state_path(self) -> Path:
+        return self.drop_dir / "_state.json"
+
+    def load_state(self) -> dict[str, Any]:
+        try:
+            return json.loads(self.state_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
+
+    def _save_state(self, state: dict[str, Any]) -> None:
+        # keep the last ~30 articles
+        items = sorted(state.items(), key=lambda kv: kv[1].get("date", ""), reverse=True)[:30]
+        tmp = self.state_path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(dict(items), indent=1), encoding="utf-8")
+        tmp.replace(self.state_path)
+
+    def awaiting_drops(self) -> list[dict[str, Any]]:
+        """Blocked articles nobody has pasted yet (newest first) — the dashboard shows these."""
+        out = [{"url": u, **v} for u, v in self.load_state().items() if v.get("status") == "blocked"]
+        return sorted(out, key=lambda r: r.get("date", ""), reverse=True)
+
+    def _mark_dates_done(self, article_date: date, how: str) -> None:
+        state = self.load_state()
+        for v in state.values():
+            if v.get("date") == str(article_date) and v.get("status") == "blocked":
+                v.update(status="done", via=how, at=datetime.now().isoformat(timespec="seconds"))
+        self._save_state(state)
+
+    def _fetch_network(self, lookback_days: int, results: dict[str, Any]) -> list[Award]:
+        """RSS -> unfetched articles. One 403 stops the pass; a blocked article is never re-requested."""
+        state = self.load_state()
+        awards: list[Award] = []
+        for url, art_date in defense_daily._discover_article_urls(lookback_days):
+            if state.get(url, {}).get("status") in ("done", "blocked"):
+                continue
+            now = datetime.now().isoformat(timespec="seconds")
+            try:
+                got = defense_daily.fetch_article_awards(url, art_date)
+            except defense_daily.DefenseSiteBlocked:
+                state[url] = {"status": "blocked", "date": str(art_date), "at": now}
+                logger.warning("war.gov blocked %s (dated %s). %s", url, art_date, defense_daily.DROP_HINT)
+                break
+            state[url] = {"status": "done", "date": str(art_date), "at": now, "via": "network", "awards": len(got)}
+            awards.extend(got)
+        self._save_state(state)
+        results["awaiting_drops"] = self.awaiting_drops()
+        return awards
+
+    def ingest_drop_text(self, conn: Any, text: str, dry_run: bool = False) -> dict[str, Any]:
+        """Save a pasted/uploaded contracts page into the drop folder and snipe it now."""
+        is_html = "<" in text[:2000] and ">" in text[:2000]
+        name = datetime.now().strftime("manual-%Y%m%d-%H%M%S") + (".html" if is_html else ".txt")
+        path = self.drop_dir / name
+        path.write_text(text, encoding="utf-8")
+        return self.snipe(conn, file_path=path, dry_run=dry_run)
+
+    def _finish_drop(self, path: Path, awards: list[Award]) -> None:
+        """Mark the drop's article date as covered and move the file out of the inbox."""
+        if awards:
+            self._mark_dates_done(awards[0].posted_date, "drop")
+        try:
+            if path.resolve().parent == self.drop_dir.resolve():
+                done = self.drop_dir / "processed"
+                done.mkdir(exist_ok=True)
+                path.replace(done / path.name)
+        except OSError as exc:
+            logger.warning("Could not move processed drop %s: %s", path.name, exc)
 
     def snipe(
         self,
@@ -83,19 +166,25 @@ class PentagonSniper:
             "alpha_plays": [],
             "orders_placed": [],
             "errors": [],
+            "awaiting_drops": [],
         }
 
-        # 1. Fetch DoD contract awards
+        # 1. Fetch DoD contract awards: a fresh operator drop wins, else the RSS feed.
+        from_drop = bool(target_file and target_file.exists())
         try:
-            if target_file and target_file.exists():
+            if from_drop:
                 awards = defense_daily.fetch_awards(file_path=target_file)
             else:
-                awards = defense_daily.fetch_awards(lookback_days=lookback_days)
+                awards = self._fetch_network(lookback_days, results)
         except Exception as exc:
             err = f"Failed fetching DoD awards: {exc}"
             logger.error(err)
             results["errors"].append(err)
             return results
+
+        if from_drop:
+            self._finish_drop(target_file, awards)
+            results["awaiting_drops"] = self.awaiting_drops()
 
         results["awards_detected"] = len(awards)
         if not awards:
@@ -106,7 +195,8 @@ class PentagonSniper:
         for award in awards:
             try:
                 award_id, status = db.upsert_award(conn, award)
-                if status == db.INSERTED:
+                is_new = status == db.INSERTED
+                if is_new:
                     results["inserted_awards"] += 1
 
                 # Enrich (resolves subsidiaries to parent tickers using manual_ticker_overrides.yaml)
@@ -143,7 +233,9 @@ class PentagonSniper:
                     enriched_award, company, score_result, min_ratio_pct=min_ratio
                 )
 
-                if is_alpha and enriched_award.ticker:
+                # Only a newly seen award can trigger: re-reading the same page must
+                # never stage the same trade twice.
+                if is_alpha and enriched_award.ticker and is_new:
                     alpha_item = {
                         "award_id": award_id,
                         "ticker": enriched_award.ticker,

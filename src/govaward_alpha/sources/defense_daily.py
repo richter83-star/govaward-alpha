@@ -1,12 +1,15 @@
-"""Defense.gov daily contracts page parser.
+"""DoD daily contracts (war.gov, formerly defense.gov) — discovery + parser.
 
-Fetches and parses DoD contract announcements from:
-  https://www.defense.gov/News/Contracts/
+Discovery uses the official contracts RSS feed, which war.gov publishes for
+automated readers:
+  https://www.war.gov/DesktopModules/ArticleCS/RSS.ashx?ContentType=400&Site=945&max=10
 
-Defense.gov blocks plain httpx/requests TLS fingerprints with a 403.
-We use urllib with a custom SSL context (closer to browser TLS) as primary,
-with httpx as fallback. Article URLs are discovered via the DoD sitemap XML,
-which is typically not WAF-protected.
+Article pages are fetched with a plain, honestly-labelled client. (The old
+browser-impersonating headers were answered with 403 on every request.) The
+site's bot wall can still refuse a request; we never try to get around it.
+A 403 raises ``DefenseSiteBlocked`` once, with no retries, and the operator
+supplies the page instead: save it into ``data/pentagon_drops/`` or paste it
+into the dashboard, and ``parse_drop`` turns it into awards.
 """
 
 from __future__ import annotations
@@ -36,40 +39,38 @@ from govaward_alpha.normalize import (
 
 logger = logging.getLogger(__name__)
 
-_INDEX_URL = "https://www.defense.gov/News/Contracts/"
-_SITEMAP_URL = "https://www.defense.gov/sitemap.xml"
-_CONTRACTS_SITEMAP = "https://www.defense.gov/news-sitemap.xml"
+RSS_URL = "https://www.war.gov/DesktopModules/ArticleCS/RSS.ashx?ContentType=400&Site=945&max=10"
+_ARTICLE_PATH = "/News/Contracts/Contract/Article/"
 
-_BROWSER_HEADERS = [
-    ("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"),
-    ("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"),
+# An honest, identifiable client. We read the public RSS feed a few times per
+# weekday evening and nothing else.
+_HEADERS = [
+    ("User-Agent", "GovAwardAlpha/0.2 (public-contract research; low-volume RSS reader)"),
+    ("Accept", "application/rss+xml,application/xml,text/html;q=0.9,*/*;q=0.5"),
     ("Accept-Language", "en-US,en;q=0.9"),
-    ("Accept-Encoding", "gzip, deflate"),
-    ("Connection", "keep-alive"),
-    ("Upgrade-Insecure-Requests", "1"),
-    ("Sec-Fetch-Dest", "document"),
-    ("Sec-Fetch-Mode", "navigate"),
-    ("Sec-Fetch-Site", "none"),
-    ("Cache-Control", "max-age=0"),
 ]
 
+DROP_HINT = (
+    "Open the article in your browser, then either paste the page text into the dashboard "
+    "(DoD drop box) or save the page as HTML into data/pentagon_drops/."
+)
 
-def _ssl_context() -> ssl.SSLContext:
-    ctx = ssl.create_default_context()
-    ctx.set_ciphers(
-        "ECDH+AESGCM:ECDH+CHACHA20:DH+AESGCM:DH+CHACHA20:ECDH+AES256:DH+AES256:"
-        "ECDH+AES128:DH+AES:ECDH+HIGH:DH+HIGH:RSA+AESGCM:RSA+AES:RSA+HIGH:!aNULL:!eNULL:!MD5"
-    )
-    return ctx
+
+class DefenseSiteBlocked(RuntimeError):
+    """war.gov refused an automated article fetch (HTTP 403). ``url`` is the article."""
+
+    def __init__(self, url: str, article_date: date | None = None) -> None:
+        self.url = url
+        self.article_date = article_date
+        super().__init__(f"war.gov blocks automated article fetches (403): {url}. {DROP_HINT}")
 
 
 def _fetch_url(url: str, timeout: int = 25) -> bytes:
-    """Fetch a URL using urllib with browser-like TLS/headers. Returns raw bytes."""
+    """Fetch a URL with urllib and the default TLS context. Returns raw bytes."""
     req = urllib.request.Request(url)
-    for key, val in _BROWSER_HEADERS:
+    for key, val in _HEADERS:
         req.add_header(key, val)
-    ctx = _ssl_context()
-    with urllib.request.urlopen(req, context=ctx, timeout=timeout) as resp:
+    with urllib.request.urlopen(req, context=ssl.create_default_context(), timeout=timeout) as resp:
         return resp.read()
 
 
@@ -87,89 +88,54 @@ def _fetch_text(url: str, timeout: int = 25) -> str:
 # Article URL discovery
 # ---------------------------------------------------------------------------
 
-def _discover_via_sitemap(lookback_days: int) -> list[tuple[str, date]]:
-    """Try to find contract article URLs from DoD sitemap/news-sitemap."""
-    cutoff = date.today() - timedelta(days=lookback_days)
-    results: list[tuple[str, date]] = []
+def parse_rss(xml_text: str, lookback_days: int, today: date | None = None) -> list[tuple[str, date]]:
+    """Contract-article (url, date) pairs from the war.gov RSS feed, newest first.
 
-    for sitemap_url in [_CONTRACTS_SITEMAP, _SITEMAP_URL]:
-        try:
-            text = _fetch_text(sitemap_url, timeout=20)
-        except Exception as exc:
-            logger.debug("Sitemap fetch failed (%s): %s", sitemap_url, exc)
-            continue
+    The date comes from the title ("Contracts for Oct. 8, 2026"); the RSS
+    pubDate (GMT, ~21:00) is the fallback, converted to US Eastern.
+    """
+    from email.utils import parsedate_to_datetime
 
-        soup = BeautifulSoup(text, "lxml-xml") if "xml" in sitemap_url else BeautifulSoup(text, "lxml")
+    from govaward_alpha.timeutil import get_eastern_time
 
-        # Look for <loc> entries pointing to contract articles
-        for loc in soup.find_all("loc"):
-            url = loc.get_text(strip=True)
-            if "/News/Contracts/Contract/Article/" not in url:
-                continue
-            # Try to extract lastmod date
-            lastmod = loc.find_next_sibling("lastmod")
-            article_date = None
-            if lastmod:
-                article_date = _parse_iso_date(lastmod.get_text(strip=True))
-            if article_date and article_date < cutoff:
-                continue
-            results.append((url, article_date or date.today()))
-
-        if results:
-            logger.debug("Sitemap %s: found %d contract article URLs", sitemap_url, len(results))
-            return results
-
-    return results
-
-
-def _discover_via_index(lookback_days: int) -> list[tuple[str, date]]:
-    """Scrape the contracts index page to find article URLs."""
-    cutoff = date.today() - timedelta(days=lookback_days)
-    try:
-        text = _fetch_text(_INDEX_URL)
-    except Exception as exc:
-        logger.error("Defense.gov index fetch failed: %s", exc)
-        return []
-
-    soup = BeautifulSoup(text, "lxml")
+    cutoff = (today or date.today()) - timedelta(days=lookback_days)
+    soup = BeautifulSoup(xml_text, "lxml-xml")
     results: list[tuple[str, date]] = []
     seen: set[str] = set()
-
-    for a_tag in soup.find_all("a", href=True):
-        href = a_tag["href"]
-        if "/News/Contracts/Contract/Article/" not in href:
+    for item in soup.find_all("item"):
+        link = item.find("link")
+        url = link.get_text(strip=True) if link else ""
+        if _ARTICLE_PATH not in url or url in seen:
             continue
-        full_url = href if href.startswith("http") else f"https://www.defense.gov{href}"
-        if full_url in seen:
+        seen.add(url)
+        title = item.find("title")
+        article_date = _parse_date_from_text(title.get_text(" ", strip=True)) if title else None
+        if article_date is None and item.find("pubDate"):
+            try:
+                article_date = get_eastern_time(parsedate_to_datetime(item.find("pubDate").get_text(strip=True))).date()
+            except (TypeError, ValueError):
+                article_date = None
+        article_date = article_date or (today or date.today())
+        if article_date < cutoff:
             continue
-        seen.add(full_url)
-        article_date = _extract_date_near_link(a_tag)
-        if article_date and article_date < cutoff:
-            continue
-        results.append((full_url, article_date or date.today()))
-
+        results.append((url, article_date))
+    results.sort(key=lambda t: t[1], reverse=True)
     return results
 
 
 def _discover_article_urls(lookback_days: int) -> list[tuple[str, date]]:
-    """Try sitemap first, then index page scrape."""
-    results = _discover_via_sitemap(lookback_days)
-    if results:
-        return results
-    return _discover_via_index(lookback_days)
-
-
-def _extract_date_near_link(tag: Any) -> date | None:
-    parent = tag.find_parent(["li", "div", "article", "p"])
-    if not parent:
-        return None
-    return _parse_date_from_text(parent.get_text(" ", strip=True))
+    """Contract articles from the official RSS feed (the only automated-friendly endpoint)."""
+    try:
+        return parse_rss(_fetch_text(RSS_URL, timeout=20), lookback_days)
+    except Exception as exc:
+        logger.error("war.gov contracts RSS fetch failed: %s", exc)
+        raise
 
 
 _DATE_RE = re.compile(
     r"\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|"
-    r"Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|"
-    r"Dec(?:ember)?)\s+(\d{1,2}),?\s+(\d{4})\b",
+    r"Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|"
+    r"Dec(?:ember)?)\.?\s+(\d{1,2}),?\s+(\d{4})\b",
     re.IGNORECASE,
 )
 
@@ -204,8 +170,10 @@ def _parse_iso_date(val: str) -> date | None:
 # ---------------------------------------------------------------------------
 
 _COMPANY_BLOCK_SPLIT = re.compile(r"\n{2,}|\r\n{2,}")
+# The one-letter suffix must stand alone: "$39,933,725 modification" is not
+# $39.9 trillion (the bare [mM] used to swallow the "m" of "modification").
 _AWARD_AMOUNT_LINE = re.compile(
-    r"\$[\d,]+(?:\.\d+)?(?:\s*(?:million|billion|thousand|[mMbBkK]))?",
+    r"\$[\d,]+(?:\.\d+)?(?:\s*(?:million|billion|thousand|[mMbBkK](?![A-Za-z])))?",
     re.IGNORECASE,
 )
 # DoD blocks open with the awardee, then a place of performance, then the
@@ -226,8 +194,8 @@ _AWARDEE_PATTERN = re.compile(
 # "SPRPA1-26-C-1234". The previous catch-all `\w{10,20}` alternative matched
 # almost any long word, so ordinary prose became a "contract number".
 _CONTRACT_NUMBER_RE = re.compile(
-    r"\b([A-Z]{1,2}\d{2,5}[A-Z]{0,2}-\d{2}-[A-Z]-\d{3,5}"
-    r"|[A-Z]{3,6}\d?-\d{2}-[A-Z]-\d{3,5})\b"
+    r"\b([A-Z]{1,2}\d{2,5}[A-Z]{0,2}-\d{2}-[A-Z]-[A-Z]?\d{3,5}"
+    r"|[A-Z]{3,6}\d?-\d{2}-[A-Z]-[A-Z]?\d{3,5})\b"
 )
 
 
@@ -254,16 +222,31 @@ def _split_blocks(body: Any) -> list[str]:
     return [b.strip() for b in _COMPANY_BLOCK_SPLIT.split(text) if b.strip()]
 
 
+_AWARD_VERB_RE = re.compile(r"\b(?:is\s+being|has\s+been|was)\s+awarded\b", re.I)
+
+
+def _article_body(soup: Any) -> Any:
+    """The container holding the awards.
+
+    The first div whose class merely contains "content" is often a header
+    banner (war.gov: ``header_banner_content``), so pick the candidate holding
+    the most award sentences, and of those the tightest one.
+    """
+    cands = soup.find_all("div", class_=re.compile(r"body|content|article", re.I))
+    cands += soup.find_all(["article", "main"])
+    scored = [(len(_AWARD_VERB_RE.findall(c.get_text(" "))), c) for c in cands]
+    scored = [(n, c) for n, c in scored if n]
+    if not scored:
+        return soup
+    best = max(n for n, _ in scored)
+    return min((c for n, c in scored if n == best), key=lambda c: len(c.get_text()))
+
+
 def _parse_article(html: str, source_url: str, article_date: date) -> list[Award]:
     settings = get_settings()
     soup = BeautifulSoup(html, "lxml")
 
-    body = (
-        soup.find("div", class_=re.compile(r"body|content|article", re.I))
-        or soup.find("article")
-        or soup.find("main")
-        or soup
-    )
+    body = _article_body(soup)
     awards: list[Award] = []
     blocks = _split_blocks(body or soup)
 
@@ -322,8 +305,9 @@ def _parse_block(block: str, source_url: str, article_date: date, min_amount: fl
         award_date=article_date,
     )
 
+    # Identity excludes the URL: the same award arrives from the live article,
+    # a saved file or a paste, and must dedupe to one row however it came in.
     source_id = content_hash({
-        "url": source_url,
         "awardee": awardee_raw,
         "amount": award_amount,
         "contract_number": contract_number,
@@ -373,38 +357,65 @@ def fetch_awards(
     if file_path:
         p = Path(file_path)
         if not p.exists():
-            logger.error("Defense.gov ingest file not found: %s", file_path)
+            logger.error("DoD drop file not found: %s", file_path)
             return []
         text = p.read_text(encoding="utf-8", errors="replace")
-        today = date.today()
-        awards = _parse_article(text, str(p), today)
-        logger.info("Defense.gov: parsed %d awards from local file %s", len(awards), p.name)
-        return awards
+        fallback = date.fromtimestamp(p.stat().st_mtime)
+        return parse_drop(text, source_url=str(p), fallback_date=fallback)
 
     settings = get_settings()
     days = lookback_days if lookback_days is not None else settings.lookback_days
 
-    all_awards: list[Award] = []
     article_urls = _discover_article_urls(days)
-
     if not article_urls:
-        logger.warning(
-            "Defense.gov: no article URLs found. The site may be blocking automated access. "
-            "Try running scan-defense manually later or check https://www.defense.gov/News/Contracts/ in a browser."
-        )
+        logger.info("war.gov RSS: no contract articles in the last %d day(s).", days)
         return []
 
+    all_awards: list[Award] = []
     for url, article_date in article_urls:
-        try:
-            text = _fetch_text(url)
-            awards = _parse_article(text, url, article_date)
-            logger.debug("Defense.gov %s → %d awards", url, len(awards))
-            all_awards.extend(awards)
-        except Exception as exc:
-            logger.warning("Defense.gov article parse error [%s]: %s", url, exc)
+        all_awards.extend(fetch_article_awards(url, article_date))
 
     logger.info(
-        "Defense.gov: fetched %d qualifying awards across %d articles",
+        "war.gov: fetched %d qualifying awards across %d articles",
         len(all_awards), len(article_urls),
     )
     return all_awards
+
+
+def fetch_article_awards(url: str, article_date: date) -> list[Award]:
+    """Fetch one contracts article. Raises ``DefenseSiteBlocked`` on a 403 (no retries)."""
+    try:
+        text = _fetch_text(url)
+    except urllib.error.HTTPError as exc:
+        if exc.code == 403:
+            raise DefenseSiteBlocked(url, article_date) from exc
+        raise
+    awards = _parse_article(text, url, article_date)
+    logger.info("war.gov %s -> %d awards", url, len(awards))
+    return awards
+
+
+def parse_drop(text: str, source_url: str = "manual-drop", fallback_date: date | None = None) -> list[Award]:
+    """Parse a contracts page the operator saved (HTML) or pasted (plain text).
+
+    The article date is read from the page ("Contracts for Oct. 8, 2026") so a
+    file processed a day late still carries the right date, which also keeps
+    award IDs stable across re-ingests.
+    """
+    is_html = bool(re.search(r"<(p|div|html|article|body)\b", text[:5000], re.I))
+    if is_html:
+        title = BeautifulSoup(text, "lxml").find(["title", "h1"])
+        head = title.get_text(" ", strip=True) if title else ""
+        html = text
+    else:
+        head = text[:400]
+        from html import escape
+        html = "<article>" + "".join(
+            f"<p>{escape(line.strip())}</p>" for line in text.splitlines() if line.strip()
+        ) + "</article>"
+    article_date = (_parse_date_from_text(head) or _parse_date_from_text(text[:3000])
+                    or fallback_date or date.today())
+    awards = _parse_article(html, source_url, article_date)
+    logger.info("DoD drop (%s, dated %s): parsed %d awards", "html" if is_html else "text",
+                article_date, len(awards))
+    return awards

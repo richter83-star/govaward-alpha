@@ -32,7 +32,7 @@ from govaward_alpha.normalize import (
 logger = logging.getLogger(__name__)
 
 _BASE_URL = "https://api.sam.gov/opportunities/v2/search"
-_PAGE_SIZE = 100
+_PAGE_SIZE = 1000  # API maximum; one request covers a normal day of award notices
 _REQUEST_DELAY = 1.2  # seconds between pages to stay under rate limit
 
 
@@ -44,10 +44,18 @@ def _is_retryable_error(exc: BaseException) -> bool:
     """
     if isinstance(exc, httpx.HTTPStatusError):
         status = exc.response.status_code if exc.response is not None else 0
-        return status == 429 or status >= 500
+        # 429 here is a *daily* quota (basic keys get ~10 requests/day): retrying
+        # only burns tomorrow's budget, so it is not retryable.
+        return status >= 500
     if isinstance(exc, httpx.TransportError):
         return True
     return False
+
+
+def _redact(exc: BaseException | str) -> str:
+    """Error text with the API key removed (httpx puts the full URL in its messages)."""
+    import re
+    return re.sub(r"api_key=[^&'\"\s]+", "api_key=REDACTED", str(exc))
 
 
 def _is_placeholder_key(key: str) -> bool:
@@ -96,9 +104,8 @@ def _fetch_page(
     # Body-level rate limit: {"code": 429, "message": "...", "nextAccessTime": "..."}
     if "opportunitiesData" not in data and data.get("code") in (429, "429"):
         next_access = data.get("nextAccessTime", "unknown")
-        logger.warning("SAM.gov body-level throttle hit. nextAccessTime=%s — backing off 15s", next_access)
-        time.sleep(15)
-        raise httpx.HTTPStatusError("Body-level 429", request=resp.request, response=resp)
+        logger.warning("SAM.gov daily quota reached. nextAccessTime=%s - stopping until then", next_access)
+        raise RuntimeError(f"SAM.gov quota reached; next access {next_access}")
 
     return data
 
@@ -144,10 +151,15 @@ def fetch_awards(lookback_days: int | None = None) -> list[Award]:
                 elif status == 403:
                     logger.error("SAM.gov 403: key invalid or not authorised.")
                 else:
-                    logger.error("SAM.gov HTTP error: %s", exc)
+                    logger.error("SAM.gov HTTP error: %s", _redact(exc))
+                if offset == 0:
+                    # nothing fetched: let run_source record an *error*, not "success, 0 seen"
+                    raise RuntimeError(f"SAM.gov HTTP {status}: {_redact(exc)}") from None
                 break
             except Exception as exc:
-                logger.error("SAM.gov fetch error: %s", exc)
+                logger.error("SAM.gov fetch error: %s", _redact(exc))
+                if offset == 0:
+                    raise RuntimeError(f"SAM.gov unreachable: {_redact(exc)}") from None
                 break
 
             opportunities = data.get("opportunitiesData", [])
@@ -176,22 +188,21 @@ def fetch_awards(lookback_days: int | None = None) -> list[Award]:
 def _parse_opportunity(opp: dict) -> Award | None:
     settings = get_settings()
 
-    # SAM.gov award notices: amount lives in awardee sub-object or top-level fields
-    awardee_obj = opp.get("awardee") or {}
+    # Opportunities v2 award notices carry the award in a nested object:
+    #   "award": {"date", "number", "amount", "awardee": {"name", "ueiSAM", "location"}}
+    # The flat fields below are kept as fallbacks for older payloads.
+    award_obj = opp.get("award") if isinstance(opp.get("award"), dict) else {}
+    awardee_obj = award_obj.get("awardee") or opp.get("awardee") or {}
     if isinstance(awardee_obj, str):
         awardee_raw = awardee_obj
         awardee_obj = {}
     else:
-        awardee_raw = (
-            awardee_obj.get("name")
-            or opp.get("awardeeName")
-            or opp.get("organizationName")
-            or ""
-        )
+        # NOTE: never fall back to organizationName - that is the *buying agency*.
+        awardee_raw = awardee_obj.get("name") or opp.get("awardeeName") or ""
 
-    # Amount fields — SAM award notices put the amount in several possible fields
     raw_amount_str = (
-        opp.get("baseAndAllOptionsValue")
+        award_obj.get("amount")
+        or opp.get("baseAndAllOptionsValue")
         or opp.get("baseAndExercisedOptionsValue")
         or awardee_obj.get("amount")
         or opp.get("awardAmount")
@@ -201,10 +212,20 @@ def _parse_opportunity(opp: dict) -> Award | None:
     award_amount = parse_dollar_amount(str(raw_amount_str)) if raw_amount_str else None
 
     description = opp.get("description") or ""
+    # In v2 "description" is a link to the notice-description endpoint, not prose.
+    # Parsing digits out of that URL produced "awards" of $78 trillion.
+    if description.startswith("http"):
+        description = ""
 
-    # If no top-level amount, try parsing from description prose
+    # If no structured amount, try parsing from description prose
     if award_amount is None and description:
         award_amount = parse_dollar_amount(description)
+
+    # Largest single US contract actions are tens of billions; anything above
+    # $500B is a parse error, not an award.
+    if award_amount is not None and award_amount > 5e11:
+        logger.warning("SAM.gov %s: implausible amount %.3g dropped", opp.get("noticeId"), award_amount)
+        award_amount = None
 
     # Filter: skip if we have a definite amount below threshold
     if award_amount is not None and award_amount < settings.award_min_amount:
@@ -220,7 +241,7 @@ def _parse_opportunity(opp: dict) -> Award | None:
 
     # Dates
     posted_date = _parse_date(opp.get("postedDate"))
-    award_date = _parse_date(opp.get("awardDate") or opp.get("responseDeadLine"))
+    award_date = _parse_date(award_obj.get("date") or opp.get("awardDate") or opp.get("responseDeadLine"))
 
     # Agency
     agency = (
@@ -244,7 +265,7 @@ def _parse_opportunity(opp: dict) -> Award | None:
         return None
 
     source_url = f"https://sam.gov/opp/{source_id}/view"
-    contract_num = opp.get("solicitationNumber") or source_id or ""
+    contract_num = award_obj.get("number") or opp.get("solicitationNumber") or source_id or ""
     flags = detect_flags(
         description,
         opp.get("type") or "",

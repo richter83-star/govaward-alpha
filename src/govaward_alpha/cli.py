@@ -26,6 +26,8 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 logger = logging.getLogger("govaward_alpha.cli")
+# httpx logs every request URL at INFO, and SAM.gov puts the API key in the URL.
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
 def _require_db() -> None:
@@ -465,12 +467,19 @@ def pentagon_sniper_cmd(
     lookback: int = typer.Option(1, "--lookback", "-l", help="Days of DoD articles to scan"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Evaluate alpha setups without placing real/paper orders"),
     interval: int = typer.Option(15, "--interval", "-i", help="Seconds between polls in watch mode"),
+    evening_only: bool = typer.Option(
+        False, "--evening-only",
+        help="Exit quietly unless it is 4:45-7:30 PM ET on a weekday (for cron: run every few minutes)",
+    ),
 ) -> None:
     """Execute the 5:00 PM ET Pentagon Contract Digest Sniper for extended-hours alpha trades."""
     _require_db()
     from govaward_alpha.db import get_connection
-    from govaward_alpha.services.pentagon_sniper import pentagon_sniper
+    from govaward_alpha.services.pentagon_sniper import in_evening_watch, pentagon_sniper
     from govaward_alpha.timeutil import get_eastern_time, get_market_session, is_pentagon_drop_window
+
+    if evening_only and not in_evening_watch():
+        return
 
     et = get_eastern_time()
     session = get_market_session()
@@ -513,6 +522,8 @@ def pentagon_sniper_cmd(
             t.add_row("Orders Staged / Executed", str(len(res["orders_placed"])))
             if res.get("errors"):
                 t.add_row("Errors", "\n".join(res["errors"]))
+            if res.get("awaiting_drops"):
+                t.add_row("Blocked - paste needed", "\n".join(f"{d['date']}  {d['url']}" for d in res["awaiting_drops"][:3]))
             console.print(t)
 
             if res["alpha_plays"]:

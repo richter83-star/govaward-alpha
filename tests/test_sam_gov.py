@@ -115,12 +115,13 @@ class TestFetchAwards:
         # ever builds a request.
         assert fetch_awards(lookback_days=1) == []
 
-    def test_http_error_returns_empty_rather_than_raising(self, httpx_mock, monkeypatch):
+    def test_http_error_raises_so_the_run_is_recorded_as_failed(self, httpx_mock, monkeypatch):
         from tenacity import wait_none
 
         monkeypatch.setattr(sam_gov._fetch_page.retry, "wait", wait_none())
         httpx_mock.add_response(url=ANY_SEARCH, status_code=403, is_reusable=True)
-        assert fetch_awards(lookback_days=1) == []
+        with pytest.raises(RuntimeError):
+            fetch_awards(lookback_days=1)
 
     def test_body_level_throttle_is_treated_as_an_error(self, httpx_mock, monkeypatch):
         """SAM returns a 429 payload inside a 200 response; it must not parse as data."""
@@ -133,7 +134,8 @@ class TestFetchAwards:
             json={"code": 429, "message": "rate limit", "nextAccessTime": "later"},
             is_reusable=True,
         )
-        assert fetch_awards(lookback_days=1) == []
+        with pytest.raises(RuntimeError):
+            fetch_awards(lookback_days=1)
 
     @pytest.mark.parametrize(
         "placeholder",
@@ -148,6 +150,7 @@ class TestFetchAwards:
     def test_404_fails_fast_without_retry(self, httpx_mock):
         """HTTP 404 should fail immediately without retrying."""
         httpx_mock.add_response(url=ANY_SEARCH, status_code=404)
-        assert fetch_awards(lookback_days=1) == []
+        with pytest.raises(RuntimeError):
+            fetch_awards(lookback_days=1)
         # Exactly one request made — tenacity should not retry 404
         assert len(httpx_mock.get_requests()) == 1
