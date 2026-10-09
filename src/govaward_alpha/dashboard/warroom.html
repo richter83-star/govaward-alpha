@@ -109,7 +109,20 @@ tbody tr{cursor:pointer}tbody tr:hover td{background:rgba(255,176,0,.05)}
 @media (max-width:980px){.grid,.bottom{grid-template-columns:1fr}.grid .col.r{grid-template-columns:1fr}.stats{grid-template-columns:repeat(3,1fr)}
   .hdr{padding:10px 12px}.grid{padding:10px}.bottom{padding:0 10px 14px}}
 @media (prefers-reduced-motion:reduce){.tape .run,.chip.arm,.vd.BLOCKED{animation:none}}
+/* living core: WebGL form under the radar */
+.corewrap{position:relative;width:100%;max-width:min(980px,calc(100vh - 170px));min-width:300px;margin:0 auto;aspect-ratio:1/1}
+.corewrap #radar{position:absolute;inset:0;width:100%;height:100%;max-width:none;min-width:0;z-index:2;margin:0}
+#core{position:absolute;left:27%;top:27%;width:46%;height:46%;z-index:1;pointer-events:none}
+.flash{animation:flash 1.4s ease-out}
+@keyframes flash{0%{box-shadow:0 0 0 1px var(--amber),0 0 38px rgba(255,176,0,.5)}100%{box-shadow:0 0 0 0 rgba(255,176,0,0)}}
+.pl{display:grid;grid-template-columns:58px 1fr;gap:2px 8px;padding:4px 0;font-size:10.5px;border-bottom:1px dashed var(--line)}
+.pl .t{color:var(--mute)}.pl.contact .x{color:var(--amber2)}.pl.warn .x{color:var(--orange)}.pl.bad .x{color:var(--red)}.pl.sys .x{color:var(--text2)}
+.pl:first-child{animation:plin .7s ease-out}
+@keyframes plin{from{opacity:0;transform:translateX(-8px)}}
+#pulselog{max-height:230px;overflow:auto}
+@media (prefers-reduced-motion:reduce){.flash,.pl:first-child{animation:none}}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
 <header class="hdr">
@@ -144,6 +157,10 @@ tbody tr{cursor:pointer}tbody tr:hover td{background:rgba(255,176,0,.05)}
         <div class="note" id="ingestres"></div>
       </div>
     </div>
+    <div class="card">
+      <div class="ct">Pulse log <span class="n">· what just changed</span></div>
+      <div class="cb" id="pulselog"><div class="mut">Listening…</div></div>
+    </div>
   </section>
 
   <section class="col">
@@ -157,13 +174,16 @@ tbody tr{cursor:pointer}tbody tr:hover td{background:rgba(255,176,0,.05)}
         <button class="flt" data-f="fresh">≤ 7 days</button>
         <span class="sp"></span><span class="mut" id="rcount"></span>
       </div>
-      <canvas id="radar" width="900" height="900" aria-label="Radar of recent contract awards"></canvas>
+      <div class="corewrap">
+        <canvas id="core" aria-hidden="true"></canvas>
+        <canvas id="radar" width="900" height="900" aria-label="Radar of recent contract awards"></canvas>
+      </div>
       <div class="legend" style="width:100%">
         <span><i style="background:var(--red);transform:rotate(45deg)"></i>RED</span>
         <span><i style="background:var(--orange);clip-path:polygon(50% 0,100% 100%,0 100%)"></i>ORANGE</span>
         <span><i style="background:var(--amber2)"></i>YELLOW</span>
         <span><i style="background:var(--dim);border-radius:50%"></i>WATCH</span>
-        <span class="mut">size = award $ · distance = age (center = now) · wedge = buyer · bright ring = &lt; 48h</span>
+        <span class="mut">size = award $ · distance = age · wedge = buyer · bright ring = &lt; 48h · core = the system's pulse: lobes reach toward buyers with fresh $, it surges on every real change</span>
       </div>
     </div>
   </section>
@@ -222,15 +242,20 @@ async function api(path, opts) {
   return j;
 }
 
+let syncLost = false;
 async function load() {
   try {
+    const prev = DATA;
     DATA = await api("/api/warroom");
     lastOk = Date.now();
     render();
+    PULSE.diff(prev, DATA);                          // real changes -> core impulses, log, flashes
+    if (syncLost) { syncLost = false; CORE.sleep(false); PULSE.note("sys", "Sync restored"); }
     if (DATA.feeds.some((f) => f.reachable === null)) setTimeout(load, 9000);   // first health check still running
   } catch (e) {
     $("upd").innerHTML = '<span class="red">SYNC LOST</span>';
     $("upd").title = String(e);
+    if (!syncLost) { syncLost = true; CORE.sleep(true); PULSE.note("bad", "Sync lost - the core dims until the server answers"); }
   }
 }
 
@@ -246,6 +271,7 @@ function render() {
   sn.textContent = d.sniper_window ? "SNIPER ARMED · polling war.gov" : "SNIPER STANDBY";
   sn.className = "chip" + (d.sniper_window ? " arm" : "");
   RADAR.setData(d);
+  CORE.setTargets(d);
   renderFeeds(d); renderDod(d); renderTape(d); renderTargets(d); renderBook(d); renderEdge(d);
   if (SEL) { const a = d.awards.find((x) => x.id === SEL); if (a) renderContact(a); }
   else { const top = targets(d)[0] || d.awards[0]; if (top) select(top.id, false); }
@@ -278,7 +304,8 @@ function renderDod(d) {
 }
 
 function renderTape(d) {
-  const items = d.awards.slice(0, 40).map((a) =>
+  // rows with neither a ticker nor an awardee name (old SAM.gov parse) carry no signal: keep them off the tape
+  const items = d.awards.filter((a) => a.ticker || (a.awardee_name_raw || "").trim()).slice(0, 40).map((a) =>
     `<span><b>${esc(a.ticker || (a.awardee_name_raw || "?").slice(0, 26))}</b> ${usd(a.award_amount)} · ${esc(RADAR.sectorName(a.sector))} · ${ageTxt(a.age_days)}</span>`);
   $("tape").innerHTML = items.join("") || "<span>No contacts in range.</span>";
 }
@@ -307,6 +334,7 @@ function select(id, scroll) {
   if (a) renderContact(a);
   document.querySelectorAll("#targets tr").forEach((tr) => tr.classList.toggle("sel", +tr.dataset.id === id));
   RADAR.select(id);
+  CORE.setFocus(a ? a.sector : -1);                 // the core leans toward what you are looking at
 }
 
 function renderContact(a) {
@@ -419,8 +447,250 @@ function tick() {
   let s = Math.max(0, DATA.seconds_to_drop - drift);
   const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), sec = Math.floor(s % 60);
   $("cd").textContent = s <= 0 ? "DROP WINDOW" : "T-" + (h ? h + "h " : "") + String(m).padStart(2, "0") + "m " + String(sec).padStart(2, "0") + "s";
+  CORE.setDrop(s);                                   // energy builds over the last 15 minutes
+  if (tick.lastS != null) {
+    if (tick.lastS > 900 && s <= 900) PULSE.note("warn", "T-15 min to the DoD drop - sniper arming");
+    if (tick.lastS > 0 && s <= 0) { PULSE.note("contact", "DoD drop window open"); CORE.impulse(null, 1.1); RADAR.ripple("#ffcf5a"); }
+  }
+  tick.lastS = s;
   $("upd").textContent = "SYNC " + Math.round(drift) + "s";
 }
+
+// ───────────────────────────── CORE ─────────────────────────────
+// A living form at the radar's centre (three.js r128, WebGL). It never holds still: noise
+// keeps re-shaping it and a heartbeat runs through it. Everything else it does is driven by
+// real data only: lobes reach toward buyers with fresh award $, it surges on each new contact,
+// order or feed shift, glitches when a feed breaks, builds energy toward the 5 PM drop, and
+// dims and greys out when the dashboard loses the server.
+const CORE = (() => {
+  const cv = $("core");
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const AMBER = [1.0, 0.69, 0.0], ORANGE = [1.0, 0.45, 0.08], RED = [1.0, 0.24, 0.16];
+  const S = {energy: 0.42, energyT: 0.42, beat: 2.4, pulse: 0, glitch: 0, sleep: 0, sleepT: 0, drop: 1e9,
+             tint: AMBER.slice(), tintT: AMBER.slice(), focus: -1, focusAmt: 0, n: 8,
+             lobes: new Array(8).fill(0), lobesT: new Array(8).fill(0)};
+  const off = {ok: false, energy: () => 0.42, setTargets() {}, setFocus() {}, setDrop() {}, impulse() {}, glitch() {}, sleep() {}};
+  if (!window.THREE) { cv.style.display = "none"; return off; }
+  let renderer;
+  try { renderer = new THREE.WebGLRenderer({canvas: cv, alpha: true, antialias: true, powerPreference: "low-power"}); }
+  catch (e) { cv.style.display = "none"; return off; }
+
+  const NOISE = `
+    vec3 mod289(vec3 x){return x-floor(x*(1.0/289.0))*289.0;} vec4 mod289(vec4 x){return x-floor(x*(1.0/289.0))*289.0;}
+    vec4 permute(vec4 x){return mod289(((x*34.0)+1.0)*x);} vec4 taylorInvSqrt(vec4 r){return 1.79284291400159-0.85373472095314*r;}
+    float snoise(vec3 v){const vec2 C=vec2(1.0/6.0,1.0/3.0);const vec4 D=vec4(0.0,0.5,1.0,2.0);
+      vec3 i=floor(v+dot(v,C.yyy));vec3 x0=v-i+dot(i,C.xxx);vec3 g=step(x0.yzx,x0.xyz);vec3 l=1.0-g;
+      vec3 i1=min(g.xyz,l.zxy);vec3 i2=max(g.xyz,l.zxy);vec3 x1=x0-i1+C.xxx;vec3 x2=x0-i2+C.yyy;vec3 x3=x0-D.yyy;
+      i=mod289(i);vec4 p=permute(permute(permute(i.z+vec4(0.0,i1.z,i2.z,1.0))+i.y+vec4(0.0,i1.y,i2.y,1.0))+i.x+vec4(0.0,i1.x,i2.x,1.0));
+      float n_=0.142857142857;vec3 ns=n_*D.wyz-D.xzx;vec4 j=p-49.0*floor(p*ns.z*ns.z);vec4 x_=floor(j*ns.z);vec4 y_=floor(j-7.0*x_);
+      vec4 x=x_*ns.x+ns.yyyy;vec4 y=y_*ns.x+ns.yyyy;vec4 h=1.0-abs(x)-abs(y);vec4 b0=vec4(x.xy,y.xy);vec4 b1=vec4(x.zw,y.zw);
+      vec4 s0=floor(b0)*2.0+1.0;vec4 s1=floor(b1)*2.0+1.0;vec4 sh=-step(h,vec4(0.0));vec4 a0=b0.xzyw+s0.xzyw*sh.xxyy;vec4 a1=b1.xzyw+s1.xzyw*sh.zzww;
+      vec3 p0=vec3(a0.xy,h.x);vec3 p1=vec3(a0.zw,h.y);vec3 p2=vec3(a1.xy,h.z);vec3 p3=vec3(a1.zw,h.w);
+      vec4 norm=taylorInvSqrt(vec4(dot(p0,p0),dot(p1,p1),dot(p2,p2),dot(p3,p3)));p0*=norm.x;p1*=norm.y;p2*=norm.z;p3*=norm.w;
+      vec4 m=max(0.6-vec4(dot(x0,x0),dot(x1,x1),dot(x2,x2),dot(x3,x3)),0.0);m=m*m;
+      return 42.0*dot(m*m,vec4(dot(p0,x0),dot(p1,x1),dot(p2,x2),dot(p3,x3)));}`;
+
+  const U = {
+    uTime: {value: 0}, uEnergy: {value: S.energy}, uPulse: {value: 0}, uBeat: {value: 0}, uGlitch: {value: 0}, uSleep: {value: 0},
+    uPulseDir: {value: new THREE.Vector3(0, 1, 0)}, uFocusDir: {value: new THREE.Vector3(0, 1, 0)}, uFocus: {value: 0},
+    uDirs: {value: Array.from({length: 8}, () => new THREE.Vector3(0, 1, 0))}, uLobes: {value: new Array(8).fill(0)},
+    uTint: {value: new THREE.Vector3(...AMBER)},
+  };
+  const mat = new THREE.ShaderMaterial({
+    uniforms: U, transparent: true,
+    vertexShader: NOISE + `
+      uniform float uTime, uEnergy, uPulse, uBeat, uGlitch, uSleep, uFocus;
+      uniform vec3 uPulseDir, uFocusDir; uniform vec3 uDirs[8]; uniform float uLobes[8];
+      varying float vDisp; varying vec3 vN; varying vec3 vView;
+      void main(){
+        vec3 p = position; vec3 n = normalize(normal);
+        float t = uTime * (0.16 + 0.3 * uEnergy);
+        float d = snoise(p * 1.35 + vec3(0.0, 0.0, t)) * (0.09 + 0.15 * uEnergy);
+        d += snoise(p * 3.4 - vec3(t * 1.6)) * 0.045 * (0.4 + uEnergy);
+        for (int i = 0; i < 8; i++) { float k = max(dot(n, uDirs[i]), 0.0); d += pow(k, 7.0) * uLobes[i]; }
+        d += pow(max(dot(n, uFocusDir), 0.0), 18.0) * uFocus;
+        d += pow(max(dot(n, uPulseDir), 0.0), 3.0) * uPulse * 0.5 + uPulse * 0.07 + uBeat * 0.055;
+        d += uGlitch * 0.16 * step(0.86, fract(sin(dot(floor(p.xy * 18.0) + floor(uTime * 24.0), vec2(12.9898, 78.233))) * 43758.5453));
+        d *= (1.0 - 0.65 * uSleep);
+        vDisp = d;
+        vec4 mv = modelViewMatrix * vec4(p + n * d, 1.0);
+        vN = normalize(normalMatrix * n); vView = normalize(-mv.xyz);
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: `
+      uniform vec3 uTint; uniform float uTime, uEnergy, uSleep, uPulse;
+      varying float vDisp; varying vec3 vN; varying vec3 vView;
+      void main(){
+        float fres = pow(1.0 - abs(dot(normalize(vN), normalize(vView))), 2.0);
+        float bands = abs(fract(vDisp * 15.0 - uTime * 0.32) - 0.5);
+        float line = 1.0 - smoothstep(0.0, 0.05, bands);
+        // dark heart, bright skin: reads as a 3D form, not a flat yellow disc
+        vec3 col = uTint * (0.02 + 0.85 * fres) + uTint * line * (0.14 + 0.32 * uEnergy) * (0.35 + fres)
+                 + vec3(1.0, 0.92, 0.75) * pow(fres, 6.0) * 0.6 + uTint * uPulse * 0.28;
+        col = mix(col, vec3(dot(col, vec3(0.3, 0.59, 0.11))) * 0.7, uSleep * 0.8);
+        gl_FragColor = vec4(col, clamp(0.16 + fres * 0.85 + line * 0.22, 0.0, 1.0) * (1.0 - 0.4 * uSleep));
+      }`,
+  });
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 50);
+  camera.position.z = 10.4;
+  const body = new THREE.Mesh(new THREE.IcosahedronGeometry(1, 40), mat);
+  scene.add(body);
+  const shellMat = new THREE.LineBasicMaterial({color: 0xffb000, transparent: true, opacity: 0.11});
+  const shell = new THREE.LineSegments(new THREE.WireframeGeometry(new THREE.IcosahedronGeometry(1.55, 1)), shellMat);
+  scene.add(shell);
+  const sporeGeo = new THREE.BufferGeometry(), N = 240, pos = new Float32Array(N * 3);
+  for (let i = 0; i < N; i++) {
+    const u = Math.random() * 2 - 1, th = Math.random() * Math.PI * 2, r = 1.75 + Math.random() * 0.7, s = Math.sqrt(1 - u * u);
+    pos[i * 3] = r * s * Math.cos(th); pos[i * 3 + 1] = r * s * Math.sin(th); pos[i * 3 + 2] = r * u;
+  }
+  sporeGeo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  const sporeMat = new THREE.PointsMaterial({color: 0xffcf5a, size: 0.035, transparent: true, opacity: 0.55, depthWrite: false});
+  const spores = new THREE.Points(sporeGeo, sporeMat);
+  scene.add(spores);
+
+  // screen bearing of sector i (same as the radar's wedges) -> 3D direction (y up)
+  const dirOf = (i) => { const a = -Math.PI / 2 + (Math.PI * 2 / S.n) * (i + 0.5); return new THREE.Vector3(Math.cos(a), -Math.sin(a), 0); };
+  function resize() {
+    const w = Math.max(80, Math.round(cv.getBoundingClientRect().width));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(w, w, false);
+  }
+  addEventListener("resize", resize); resize();
+
+  let t0 = performance.now(), last = t0;
+  const ease = (a, b, k) => a + (b - a) * Math.min(1, k);
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    const t = (now - t0) / 1000 * (reduce ? 0.15 : 1);
+    const dropBoost = S.drop < 900 ? 0.3 * (1 - S.drop / 900) : 0;
+    S.energy = ease(S.energy, Math.min(1.2, S.energyT + dropBoost), dt * 1.1);
+    S.sleep = ease(S.sleep, S.sleepT, dt * 1.4);
+    for (let i = 0; i < 8; i++) S.lobes[i] = ease(S.lobes[i], S.lobesT[i], dt * 1.3);
+    for (let k = 0; k < 3; k++) S.tint[k] = ease(S.tint[k], S.tintT[k], dt * 2.2);
+    S.pulse *= Math.exp(-dt * 1.5); S.glitch *= Math.exp(-dt * 2.6);
+    S.focusAmt = ease(S.focusAmt, S.focus >= 0 ? 0.2 : 0, dt * 3);
+    const period = S.beat * (1 - 0.35 * dropBoost), ph = (t % period) / period;
+    const beat = Math.exp(-ph * 10) + (ph > 0.17 ? 0.55 * Math.exp(-(ph - 0.17) * 10) : 0);   // lub-dub
+    U.uTime.value = t; U.uEnergy.value = S.energy; U.uPulse.value = S.pulse; U.uBeat.value = reduce ? 0 : beat;
+    U.uGlitch.value = reduce ? 0 : S.glitch; U.uSleep.value = S.sleep; U.uFocus.value = S.focusAmt;
+    U.uLobes.value = S.lobes; U.uTint.value.set(S.tint[0], S.tint[1], S.tint[2]);
+    shell.rotation.y += dt * 0.1 * (0.5 + S.energy); shell.rotation.x += dt * 0.04;
+    shellMat.opacity = 0.08 + 0.1 * S.energy + 0.25 * S.pulse;
+    spores.rotation.z -= dt * 0.05 * (0.4 + S.energy); spores.rotation.x += dt * 0.02;
+    sporeMat.opacity = (0.35 + 0.35 * S.energy) * (1 - 0.6 * S.sleep);
+    const sc = 1 + 0.12 * S.pulse; spores.scale.set(sc, sc, sc);
+    renderer.render(scene, camera);
+    if (document.hidden) setTimeout(() => requestAnimationFrame(frame), 500); else requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  return {
+    ok: true,
+    energy: () => S.energy,
+    setTargets(d) {
+      S.n = Math.min(8, (d.sectors || []).length || 8);
+      for (let i = 0; i < 8; i++) U.uDirs.value[i].copy(dirOf(i));
+      const sum = new Array(8).fill(0);
+      d.awards.forEach((a) => { if (a.age_days != null && a.age_days <= 7 && a.sector < 8) sum[a.sector] += a.award_amount || 0; });
+      for (let i = 0; i < 8; i++) S.lobesT[i] = Math.min(0.55, 0.13 * Math.log10(1 + sum[i] / 5e7));
+      const live = d.feeds.filter((f) => !f.parked);
+      S.tintT = d.mode.live_allowed || live.some((f) => f.verdict === "DOWN") ? RED.slice()
+        : live.some((f) => f.verdict === "BLOCKED") ? ORANGE.slice() : AMBER.slice();
+      S.energyT = 0.42 + (d.sniper_window ? 0.38 : 0) + Math.min(0.2, 0.04 * d.awards.filter((a) => a.age_days <= 2).length);
+      S.beat = d.sniper_window ? 1.15 : 2.4;
+    },
+    setFocus(i) { S.focus = i; if (i >= 0) U.uFocusDir.value.copy(dirOf(i)); },
+    setDrop(s) { S.drop = s; },
+    impulse(sector, strength) {
+      const dir = sector == null ? new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, 0.6).normalize() : dirOf(sector);
+      U.uPulseDir.value.copy(dir);
+      S.pulse = Math.min(1.6, S.pulse + (strength || 0.6));
+    },
+    glitch(strength) { S.glitch = Math.min(1.5, S.glitch + (strength || 1)); },
+    sleep(on) { S.sleepT = on ? 1 : 0; },
+  };
+})();
+
+// ───────────────────────────── PULSE ─────────────────────────────
+// Diffs each snapshot against the last one and turns real changes into reactions:
+// core impulse + radar ripple + inbound comet + panel flash + a line in the pulse log.
+// On first load it replays what arrived since this browser last looked (or the last 48 h).
+const PULSE = (() => {
+  const log = [];
+  const KEY = "govaward_seen_v1";
+  function readSeen() { try { return new Set(JSON.parse(localStorage.getItem(KEY) || "[]")); } catch (e) { return new Set(); } }
+  function writeSeen(ids) { try { localStorage.setItem(KEY, JSON.stringify(ids.slice(0, 2000))); } catch (e) {} }
+  function flash(id) {
+    const el = $(id) && $(id).closest(".card"); if (!el) return;
+    el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash");
+  }
+  function note(kind, text) {
+    const clk = $("clock").textContent || "";
+    log.unshift({t: /\d/.test(clk) ? clk.slice(0, 5) : (DATA && DATA.now_et ? DATA.now_et.slice(11, 16) : "--:--"), kind, text});
+    if (log.length > 16) log.length = 16;
+    $("pulselog").innerHTML = log.map((e) => `<div class="pl ${e.kind}"><span class="t">${esc(e.t)} ET</span><span class="x">${esc(e.text)}</span></div>`).join("");
+  }
+  function arrive(a, replay) {
+    const amt = a.award_amount || a.obligated_amount || 5e7;
+    CORE.impulse(a.sector, Math.min(1.3, 0.35 + 0.28 * Math.log10(Math.max(1, amt / 5e7))));
+    RADAR.inbound(a.id); RADAR.ripple(LV[a.alert_level] || "#ffb000");
+    flash("targets"); flash("tape");
+    note("contact", `${replay ? "since last look · " : ""}NEW CONTACT ${a.ticker || (a.awardee_name_raw || "?").slice(0, 28)} ${usd(amt)} → ${RADAR.sectorName(a.sector)}`);
+  }
+  function shift(kind, text, strength, cardId, glitch) {
+    note(kind, text); CORE.impulse(null, strength);
+    if (glitch) CORE.glitch(glitch);
+    RADAR.ripple(kind === "bad" ? "#ff3b2f" : kind === "warn" ? "#ff7a1a" : "#ffb000");
+    if (cardId) flash(cardId);
+  }
+  function diff(prev, d) {
+    const ids = d.awards.map((a) => a.id);
+    let fresh;
+    if (!prev) {
+      const seen = readSeen();
+      fresh = seen.size ? d.awards.filter((a) => !seen.has(a.id) && a.age_days != null && a.age_days <= 7)
+                        : d.awards.filter((a) => a.age_days != null && a.age_days <= 2);
+      note("sys", `War Room online · ${d.awards.length} contacts tracked`);
+    } else {
+      const old = new Set(prev.awards.map((a) => a.id));
+      fresh = d.awards.filter((a) => !old.has(a.id));
+    }
+    writeSeen(ids);
+    fresh.sort((x, y) => (y.award_amount || 0) - (x.award_amount || 0));
+    fresh.slice(0, 10).forEach((a, k) => setTimeout(() => arrive(a, !prev), 900 + k * 1100));
+    if (fresh.length > 10) setTimeout(() => note("contact", `+${fresh.length - 10} more new contacts`), 900 + 10 * 1100);
+    if (!prev) return;
+
+    const pf = Object.fromEntries(prev.feeds.map((f) => [f.source, f]));
+    d.feeds.forEach((f) => {
+      const o = pf[f.source]; if (!o || o.verdict === f.verdict) return;
+      const bad = f.verdict === "DOWN" || f.verdict === "BLOCKED";
+      shift(bad ? (f.verdict === "DOWN" ? "bad" : "warn") : "sys", `FEED ${f.label}: ${o.verdict} → ${f.verdict}`, bad ? 0.5 : 0.4, "feeds", bad ? 1.2 : 0);
+    });
+    const pa = Object.fromEntries((prev.dod.articles || []).map((a) => [a.url, a.status]));
+    (d.dod.articles || []).forEach((a) => {
+      if (pa[a.url] === a.status) return;
+      if (a.status === "blocked") shift("warn", `war.gov blocked the ${a.date} article - paste it in the drop box`, 0.6, "articles", 1.0);
+      else if (a.status === "done") shift("contact", `DoD ${a.date} article read · ${a.awards ?? 0} awards ≥ $50M`, 0.8, "articles");
+    });
+    if (prev.sniper_window !== d.sniper_window)
+      shift(d.sniper_window ? "warn" : "sys", d.sniper_window ? "SNIPER ARMED · polling war.gov every 5 min" : "Sniper back to standby", 0.7);
+    if (prev.mode.live_allowed !== d.mode.live_allowed)
+      shift("bad", d.mode.live_allowed ? "LIVE TRADING UNLOCKED on the server" : "LIVE trading locked again", 1.0, null, 1.5);
+    if (prev.mode.engine_mode !== d.mode.engine_mode) shift("warn", `Engine mode ${prev.mode.engine_mode} → ${d.mode.engine_mode}`, 0.6);
+    const ps = prev.book.stats, s = d.book.stats;
+    if (s.pending_orders_count > ps.pending_orders_count) shift("contact", `ORDER STAGED · ${s.pending_orders_count} awaiting approval`, 0.9, "pending");
+    if (s.open_positions_count !== ps.open_positions_count)
+      shift("contact", `Positions ${ps.open_positions_count} → ${s.open_positions_count}`, 0.7, "positions");
+    if (Math.abs((s.total_realized_pnl || 0) - (ps.total_realized_pnl || 0)) > 0.005) {
+      const dl = (s.total_realized_pnl || 0) - (ps.total_realized_pnl || 0);
+      shift(dl < 0 ? "bad" : "contact", `Realized P&L ${dl < 0 ? "−" : "+"}${money(Math.abs(dl))} (paper)`, 0.7, "stats", dl < 0 ? 0.6 : 0);
+    }
+    if (((d.edge || {}).generated_at || "") !== ((prev.edge || {}).generated_at || "")) shift("sys", "Edge check re-run", 0.5, "edge");
+  }
+  return {diff, note};
+})();
 
 // ───────────────────────────── RADAR ─────────────────────────────
 const RADAR = (() => {
@@ -431,6 +701,9 @@ const RADAR = (() => {
   let sectors = [], blips = [], sel = null, hover = null, filter = "all";
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const t0 = performance.now();
+  let swAng = -Math.PI / 2, lastFrame = t0;
+  const ripples = [];                 // {t, col}: rings that leave the core on a real event
+  const inbound = new Map();          // award id -> time it started flying in from the rim
 
   function resize() {
     const box = cv.getBoundingClientRect();
@@ -441,7 +714,8 @@ const RADAR = (() => {
     CX = CY = W / 2; R = W / 2 - Math.max(34, W * 0.055);
     layout();
   }
-  const rOf = (age) => R * (0.05 + 0.95 * Math.sqrt(Math.min(Math.max(age ?? MAXD, 0), MAXD) / MAXD));
+  // the inner 24% belongs to the living core, so even a brand-new contact sits on its skin
+  const rOf = (age) => R * (0.24 + 0.76 * Math.sqrt(Math.min(Math.max(age ?? MAXD, 0), MAXD) / MAXD));
   const wedge = () => (Math.PI * 2) / Math.max(sectors.length, 1);
   const angOf = (i) => -Math.PI / 2 + wedge() * (i + 0.5);
   function hash(n) { let x = (n * 2654435761) >>> 0; x ^= x >>> 15; x = Math.imul(x, 2246822519) >>> 0; return (x % 10000) / 10000; }
@@ -515,7 +789,10 @@ const RADAR = (() => {
     // stale zone shading beyond 30d
     ctx.fillStyle = "rgba(0,0,0,.28)"; ctx.beginPath(); ctx.arc(CX, CY, R, 0, Math.PI * 2); ctx.arc(CX, CY, rOf(30), 0, Math.PI * 2, true); ctx.fill();
     // sweep
-    const sw = reduce ? -Math.PI / 2 : -Math.PI / 2 + ((now - t0) / 1000 / SWEEP_S) * Math.PI * 2;
+    // the sweep speeds up with the core's energy (armed sniper, drop approaching, bursts of news)
+    const dtS = Math.min(0.1, (now - lastFrame) / 1000); lastFrame = now;
+    if (!reduce) swAng += dtS * (Math.PI * 2 / SWEEP_S) * (0.7 + 0.8 * CORE.energy());
+    const sw = swAng;
     if (ctx.createConicGradient) {
       const cg = ctx.createConicGradient(sw - 1.25, CX, CY);
       cg.addColorStop(0, "rgba(255,170,0,0)"); cg.addColorStop(0.19, "rgba(255,170,0,.20)"); cg.addColorStop(0.199, "rgba(255,200,90,.55)"); cg.addColorStop(0.2, "rgba(255,170,0,0)");
@@ -523,9 +800,17 @@ const RADAR = (() => {
     }
     ctx.strokeStyle = "rgba(255,210,120,.9)"; ctx.lineWidth = 1.6; ctx.shadowColor = "rgba(255,170,0,.9)"; ctx.shadowBlur = 12;
     ctx.beginPath(); ctx.moveTo(CX, CY); ctx.lineTo(CX + Math.cos(sw) * R, CY + Math.sin(sw) * R); ctx.stroke(); ctx.shadowBlur = 0;
-    // hub
-    ctx.fillStyle = "#ffb000"; ctx.beginPath(); ctx.arc(CX, CY, 3, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = "rgba(255,190,80,.6)"; ctx.fillText("NOW", CX + 7, CY + 4);
+    // event ripples: leave the core's skin and run out to the rim
+    for (let i = ripples.length - 1; i >= 0; i--) {
+      const e = (now - ripples[i].t) / 1900;
+      if (e >= 1) { ripples.splice(i, 1); continue; }
+      const r0 = R * 0.2, r = r0 + (R - r0) * (1 - Math.pow(1 - e, 2.2));
+      ctx.globalAlpha = 0.75 * (1 - e); ctx.strokeStyle = ripples[i].col; ctx.lineWidth = 2.2 * (1 - e) + 0.6;
+      ctx.beginPath(); ctx.arc(CX, CY, r, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1;
+    }
+    if (!CORE.ok) {   // no WebGL: a plain hub so the scope still has a centre
+      ctx.fillStyle = "#ffb000"; ctx.beginPath(); ctx.arc(CX, CY, 4 + 2 * Math.sin(now / 400), 0, Math.PI * 2); ctx.fill();
+    }
     return sw;
   }
 
@@ -536,8 +821,20 @@ const RADAR = (() => {
     const vis = blips.filter((b) => pass(b.a));
     // big + selected drawn last so they sit on top
     vis.sort((p, q) => (p.a.id === sel) - (q.a.id === sel) || p.s - q.s);
+    const flying = [];
     for (const b of vis) {
       const a = b.a, col = LV[a.alert_level] || LV.WATCH;
+      const t0b = inbound.get(a.id);
+      if (t0b != null) {                                  // a new contact still on its way in
+        const p = (now - t0b) / 1500;
+        if (p < 1) { flying.push([b, p, col]); continue; }
+        if (p > 2.4) inbound.delete(a.id);
+        else {                                            // landing flare
+          const f = (p - 1) / 1.4;
+          ctx.globalAlpha = 0.9 * (1 - f); ctx.strokeStyle = "#ffe2a0"; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.arc(b.x, b.y, b.s + 6 + f * 34, 0, twoPi); ctx.stroke(); ctx.globalAlpha = 1;
+        }
+      }
       const bn = ((b.ang % twoPi) + twoPi) % twoPi;
       const since = reduce ? 99 : ((swN - bn + twoPi) % twoPi) / twoPi * SWEEP_S;   // seconds since the sweep passed
       const ping = Math.exp(-since / 1.4);
@@ -571,11 +868,23 @@ const RADAR = (() => {
         ctx.beginPath(); ctx.moveTo(CX, CY); ctx.lineTo(b.x, b.y); ctx.stroke(); ctx.setLineDash([]);
       }
     }
+    // inbound comets: from the rim, along the contact's own bearing, to where it belongs
+    for (const [b, p, col] of flying) {
+      const e = 1 - Math.pow(1 - p, 3);
+      const rx = CX + Math.cos(b.ang) * R, ry = CY + Math.sin(b.ang) * R;
+      const x = rx + (b.x - rx) * e, y = ry + (b.y - ry) * e;
+      const tx = rx + (b.x - rx) * Math.max(0, e - 0.35), ty = ry + (b.y - ry) * Math.max(0, e - 0.35);
+      const g = ctx.createLinearGradient(tx, ty, x, y);
+      g.addColorStop(0, "rgba(255,200,90,0)"); g.addColorStop(1, "rgba(255,226,160,.95)");
+      ctx.strokeStyle = g; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(x, y); ctx.stroke();
+      ctx.shadowColor = col; ctx.shadowBlur = 22; ctx.fillStyle = "#ffe2a0";
+      shape(x, y, b.s * 1.2, b.a.alert_level); ctx.fill(); ctx.shadowBlur = 0;
+    }
   }
 
   function frame(now) {
     if (W) { const sw = drawScope(now); drawBlips(now, sw); }
-    requestAnimationFrame(frame);
+    if (document.hidden) setTimeout(() => requestAnimationFrame(frame), 500); else requestAnimationFrame(frame);
   }
 
   function pick(ev) {
@@ -600,7 +909,9 @@ const RADAR = (() => {
   function sectorName(i) { return sectors[i] || "?"; }
 
   resize(); requestAnimationFrame(frame);
-  return {setData, select: (id) => { sel = id; }, setFilter: (f) => { filter = f; if (DATA) setData(DATA); }, sectorName};
+  return {setData, select: (id) => { sel = id; }, setFilter: (f) => { filter = f; if (DATA) setData(DATA); }, sectorName,
+          ripple: (col) => { if (!reduce) ripples.push({t: performance.now(), col: col || "#ffb000"}); },
+          inbound: (id) => { if (!reduce) inbound.set(id, performance.now()); }};
 })();
 
 load();
