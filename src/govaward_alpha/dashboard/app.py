@@ -15,6 +15,10 @@ from govaward_alpha.db import connect
 
 app = FastAPI(title="GovAward Alpha Dashboard", docs_url=None, redoc_url=None)
 
+from govaward_alpha.dashboard.security import LIVE_LOCKED_MESSAGE, PasswordMiddleware, live_allowed  # noqa: E402
+
+app.add_middleware(PasswordMiddleware)
+
 _HTML = (Path(__file__).parent / "index.html").read_text(encoding="utf-8")
 
 
@@ -425,6 +429,8 @@ async def update_trader_config(
     tp = body.get("take_profit_pct", take_profit_pct)
     sl = body.get("stop_loss_pct", stop_loss_pct)
     ts = body.get("trailing_stop", trailing_stop)
+    if em is not None and str(em).strip().upper() == "LIVE" and not live_allowed():
+        raise HTTPException(status_code=403, detail=LIVE_LOCKED_MESSAGE)
 
     conn = _db()
     try:

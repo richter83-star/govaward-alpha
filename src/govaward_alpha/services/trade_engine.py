@@ -284,6 +284,10 @@ class TradeEngine:
         engine_mode = cfg.get("engine_mode", "PAPER")
         if engine_mode == "OFF":
             return None
+        from govaward_alpha.dashboard.security import live_allowed
+        if engine_mode == "LIVE" and not live_allowed():
+            logger.error("LIVE engine mode is set but GOVAWARD_ALLOW_LIVE is not 'yes': refusing to stage a LIVE order.")
+            return None
 
         # LIVE safety gate: require HIGH_CONFIDENCE or MANUAL_OVERRIDE for real money
         confidence = getattr(award, "ticker_confidence", "UNRESOLVED")
@@ -414,6 +418,10 @@ class TradeEngine:
         mode = order.get("mode", "PAPER")
         is_ext = order.get("session") == "EXTENDED_HOURS" or is_extended_hours()
 
+        from govaward_alpha.dashboard.security import live_allowed
+        if mode == "LIVE" and not live_allowed():
+            logger.error("Refusing LIVE order #%d: GOVAWARD_ALLOW_LIVE is not 'yes' on this server.", order_id)
+            return None
         broker = self._get_broker(mode)
         broker_order_id = ""
 
