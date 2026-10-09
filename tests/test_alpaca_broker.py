@@ -221,8 +221,10 @@ class TestAlpacaOrders:
 
 
 class TestTradeEngineLiveRouting:
-    def test_live_order_execution_with_mock_broker(self, db_conn):
+    def test_live_order_execution_with_mock_broker(self, db_conn, monkeypatch):
         """Verify TradeEngine correctly executes a LIVE order and persists broker_order_id."""
+        # LIVE is locked unless the server opts in (security.live_allowed); this test opts in.
+        monkeypatch.setenv("GOVAWARD_ALLOW_LIVE", "yes")
         conn = db_conn
 
         # Set engine mode to LIVE
