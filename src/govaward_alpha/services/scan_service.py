@@ -136,9 +136,18 @@ def run_all(lookback_days: int | None = None) -> dict[str, dict]:
     from govaward_alpha.sources import sam_gov, defense_daily, usaspending
 
     results: dict[str, dict] = {}
+    parked = get_settings().parked
 
-    results["sam_gov"] = run_source("sam_gov", sam_gov.fetch_awards, lookback_days)
-    results["defense_daily"] = run_source("defense_daily", defense_daily.fetch_awards, lookback_days)
-    results["usaspending"] = run_source("usaspending", usaspending.fetch_recent_awards, lookback_days)
+    sources = [
+        ("sam_gov", sam_gov.fetch_awards),
+        ("defense_daily", defense_daily.fetch_awards),
+        ("usaspending", usaspending.fetch_recent_awards),
+    ]
+    for name, fn in sources:
+        if name in parked:
+            # Parked on purpose (GOVAWARD_PARKED_SOURCES): skip without recording a failed run.
+            logger.info("%s is parked (GOVAWARD_PARKED_SOURCES) - skipped", name)
+            continue
+        results[name] = run_source(name, fn, lookback_days)
 
     return results

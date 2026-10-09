@@ -65,6 +65,25 @@ def test_sector_buckets(agency, sub, expected):
     assert SECTORS[sector_of(agency, sub)][0] == expected
 
 
+def test_parked_sources_show_parked_and_are_not_scanned(client, monkeypatch):
+    from govaward_alpha import config
+    from govaward_alpha.services import scan_service
+    from govaward_alpha.sources import defense_daily, sam_gov, usaspending
+    monkeypatch.setenv("GOVAWARD_PARKED_SOURCES", "sam_gov,usaspending")
+    config._settings = None
+
+    def boom(*a, **k):
+        raise AssertionError("a parked source must not be fetched")
+    monkeypatch.setattr(sam_gov, "fetch_awards", boom)
+    monkeypatch.setattr(usaspending, "fetch_recent_awards", boom)
+    monkeypatch.setattr(defense_daily, "fetch_awards", lambda *a, **k: [])
+    assert set(scan_service.run_all(lookback_days=1)) == {"defense_daily"}
+    feeds = {f["source"]: f for f in client.get("/api/warroom?probe=1").json()["feeds"]}
+    assert feeds["sam_gov"]["verdict"] == "PARKED" and feeds["usaspending"]["verdict"] == "PARKED"
+    assert "reachable" not in feeds["sam_gov"]          # parked hosts are never polled
+    assert feeds["defense_daily"]["verdict"] != "PARKED"
+
+
 def test_unreachable_host_is_down_never_connected():
     f = {"source": "sam_gov", "host": "api.sam.gov", "reachable": False, "newest_award": "2026-10-08"}
     assert _verdict(f, {})[0] == "DOWN"

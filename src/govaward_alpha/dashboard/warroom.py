@@ -121,14 +121,18 @@ def feed_health(conn: sqlite3.Connection, probe: bool = True) -> list[dict[str, 
                "last_seen": last[2] if last else None, "last_error": (last[3] or "")[:200] if last else "",
                "last_productive_run_at": ok_run, "last_productive_age_h": _age_hours(ok_run),
                "newest_award": newest[0], "award_count": newest[1]}
-        if probe:
+        row["parked"] = src in get_settings().parked
+        if probe and not row["parked"]:   # a parked source is not polled at all
             row["reachable"], row["connect_ms"] = reachable(_HOSTS[src])
         out.append(row)
     return out
 
 
 def _verdict(f: dict[str, Any], sniper_state: dict[str, Any]) -> tuple[str, str]:
-    """(LIVE | STALE | DOWN | BLOCKED, one-line reason). Never 'connected' without evidence."""
+    """(LIVE | STALE | DOWN | BLOCKED | PARKED, one-line reason). Never 'connected' without evidence."""
+    if f.get("parked"):
+        return "PARKED", ("off by choice: this UK server can't reach it; history kept. "
+                          "Re-enable: remove it from GOVAWARD_PARKED_SOURCES in .env")
     if f.get("reachable") is False:
         return "DOWN", f"{f['host']} does not answer from this server"
     newest = f.get("newest_award")

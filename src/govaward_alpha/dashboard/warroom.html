@@ -60,6 +60,8 @@ button{font:inherit;cursor:pointer}
 .vd.STALE{color:var(--dim);border-color:var(--dim);background:repeating-linear-gradient(135deg,rgba(138,100,22,.18) 0 4px,transparent 4px 8px)}
 .vd.DOWN{color:var(--red);border-color:var(--red)}
 .vd.BLOCKED{color:var(--orange);border-color:var(--orange);animation:blink 1s steps(2) infinite}
+.vd.PARKED{color:var(--mute);border-color:var(--mute);border-style:dashed}
+.feed.parked .fl,.feed.parked .fw{color:var(--mute)}
 .fl{font-weight:700;color:var(--text)}.fw{color:var(--text2)}.fm{color:var(--mute);font-size:10.5px}
 .mut{color:var(--mute)}.amb{color:var(--amber)}.red{color:var(--red)}.org{color:var(--orange)}
 textarea{width:100%;height:92px;resize:vertical;background:#050403;border:1px solid var(--line2);color:var(--text);
@@ -254,7 +256,7 @@ function renderFeeds(d) {
     const reach = f.reachable === undefined ? "" : f.reachable === null ? `<span class="mut">checking ${esc(f.host)}…</span>` : f.reachable
       ? `<span class="mut">${esc(f.host)} answers · ${f.connect_ms} ms</span>`
       : `<span class="red">${esc(f.host)} unreachable from server</span>`;
-    return `<div class="feed"><div class="vd ${esc(f.verdict)}">${esc(f.verdict)}</div>
+    return `<div class="feed${f.parked ? " parked" : ""}"><div class="vd ${esc(f.verdict)}">${esc(f.verdict)}</div>
       <div class="fl">${esc(f.label)}</div>
       <div class="fw">${esc(f.why)}</div>
       <div class="fm">last productive run ${hrsTxt(f.last_productive_age_h)} · ${f.award_count} awards on file<br>${reach}

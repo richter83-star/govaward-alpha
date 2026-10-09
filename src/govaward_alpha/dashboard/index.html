@@ -2377,12 +2377,13 @@
     pills.forEach((p, i) => {
       const f = by[order[i % 3]]; if (!f) return;
       p.textContent = f.verdict; p.title = f.why;
-      p.className = 'pill ' + (f.verdict === 'LIVE' ? 'pill-mint' : f.verdict === 'STALE' ? 'pill-yellow' : 'pill-red');
+      p.className = 'pill ' + (f.verdict === 'LIVE' ? 'pill-mint' : f.verdict === 'STALE' ? 'pill-yellow' : f.verdict === 'PARKED' ? 'pill-cyan' : 'pill-red');
     });
-    const live = d.feeds.filter(f => f.verdict === 'LIVE').length;
-    window.__feedPill = '\u25CF ' + live + '/3 LIVE';
+    const active = d.feeds.filter(f => f.verdict !== 'PARKED');
+    const live = active.filter(f => f.verdict === 'LIVE').length;
+    window.__feedPill = '\u25CF ' + live + '/' + active.length + ' LIVE';
     const fp = document.getElementById('feed-status-pill');
-    if (fp) { fp.innerHTML = window.__feedPill; if (live < 3) fp.className = 'pill pill-yellow'; }
+    if (fp) { fp.innerHTML = window.__feedPill; if (live < active.length) fp.className = 'pill pill-yellow'; }
   } catch (e) { /* leave the page alone if the API is unreachable */ }
 })();
 </script>

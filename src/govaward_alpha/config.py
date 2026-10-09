@@ -104,6 +104,14 @@ class Settings(BaseSettings):
     alpaca_endpoint: str = Field(default="https://api.alpaca.markets", alias="ALPACA_ENDPOINT")
     alpaca_live: bool = Field(default=False, alias="ALPACA_LIVE")
 
+    # Sources switched off on purpose, comma-separated (e.g. "sam_gov,usaspending").
+    # A parked source is skipped by `scan` and shown as PARKED, not as broken.
+    parked_sources: str = Field(default="", alias="GOVAWARD_PARKED_SOURCES")
+
+    @property
+    def parked(self) -> set[str]:
+        return {s.strip() for s in self.parked_sources.split(",") if s.strip()}
+
     @property
     def cache_path(self) -> Path:
         p = Path(self.cache_dir)

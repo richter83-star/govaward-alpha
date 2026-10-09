@@ -1086,12 +1086,23 @@ def trigger_scan() -> dict[str, Any]:
             _scan_status["running"] = True
             _scan_status["last_run"] = utcnow().isoformat()
             try:
-                from govaward_alpha.services.scan_service import run_source
-                from govaward_alpha.sources import usaspending
+                from govaward_alpha.config import get_settings
+                if "usaspending" in get_settings().parked:
+                    # USAspending is parked: "Run Scan" checks war.gov for DoD contracts instead.
+                    from govaward_alpha.db import get_connection
+                    from govaward_alpha.services.pentagon_sniper import pentagon_sniper
+                    with get_connection() as conn:
+                        res = pentagon_sniper.snipe(conn, lookback_days=1)
+                    _scan_status["last_status"] = "success" if not res.get("errors") else "error"
+                    _scan_status["message"] = (f"war.gov checked: {res.get('awards_detected', 0)} awards, "
+                                               f"{res.get('inserted_awards', 0)} new (USAspending is parked).")
+                else:
+                    from govaward_alpha.services.scan_service import run_source
+                    from govaward_alpha.sources import usaspending
 
-                run_source("usaspending", usaspending.fetch_recent_awards, lookback_days=1)
-                _scan_status["last_status"] = "success"
-                _scan_status["message"] = "Scan completed successfully."
+                    run_source("usaspending", usaspending.fetch_recent_awards, lookback_days=1)
+                    _scan_status["last_status"] = "success"
+                    _scan_status["message"] = "Scan completed successfully."
             except Exception as exc:
                 _scan_status["last_status"] = "error"
                 _scan_status["message"] = str(exc)
