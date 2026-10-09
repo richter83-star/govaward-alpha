@@ -2305,7 +2305,7 @@
       if (!pill) return;
       if (isOnline) {
         pill.className = 'pill pill-mint';
-        pill.innerHTML = '● 3/3 LIVE';
+        pill.innerHTML = window.__feedPill || '● FEEDS ?';
         pill.title = 'Live SSH tunnel connected. Feeds synchronized.';
       } else {
         pill.className = 'pill pill-red';
@@ -2364,5 +2364,27 @@
       refreshAllData();
     });
   </script>
+
+<script>
+/* Honest feed health (added 2026-10-09): the pills used to say CONNECTED unconditionally. */
+(async function honestFeeds() {
+  try {
+    const r = await fetch('/api/warroom?probe=1', {credentials: 'same-origin'});
+    const d = await r.json();
+    const order = ['sam_gov', 'defense_daily', 'usaspending'];
+    const by = Object.fromEntries(d.feeds.map(f => [f.source, f]));
+    const pills = [...document.querySelectorAll('.pill')].filter(p => p.textContent.trim() === 'CONNECTED');
+    pills.forEach((p, i) => {
+      const f = by[order[i % 3]]; if (!f) return;
+      p.textContent = f.verdict; p.title = f.why;
+      p.className = 'pill ' + (f.verdict === 'LIVE' ? 'pill-mint' : f.verdict === 'STALE' ? 'pill-yellow' : 'pill-red');
+    });
+    const live = d.feeds.filter(f => f.verdict === 'LIVE').length;
+    window.__feedPill = '\u25CF ' + live + '/3 LIVE';
+    const fp = document.getElementById('feed-status-pill');
+    if (fp) { fp.innerHTML = window.__feedPill; if (live < 3) fp.className = 'pill pill-yellow'; }
+  } catch (e) { /* leave the page alone if the API is unreachable */ }
+})();
+</script>
 </body>
 </html>

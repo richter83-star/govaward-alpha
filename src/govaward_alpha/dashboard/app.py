@@ -19,6 +19,10 @@ from govaward_alpha.dashboard.security import LIVE_LOCKED_MESSAGE, PasswordMiddl
 
 app.add_middleware(PasswordMiddleware)
 
+from govaward_alpha.dashboard.warroom import router as warroom_router  # noqa: E402
+
+app.include_router(warroom_router)  # '/' = War Room
+
 _HTML = (Path(__file__).parent / "index.html").read_text(encoding="utf-8")
 
 
@@ -27,7 +31,7 @@ def _db() -> sqlite3.Connection:
     return connect(settings.db_path)
 
 
-@app.get("/", response_class=HTMLResponse)
+@app.get("/classic", response_class=HTMLResponse)
 def root() -> HTMLResponse:
     path = Path(__file__).parent / "index.html"
     return HTMLResponse(path.read_text(encoding="utf-8"))

@@ -1,0 +1,610 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GovAward War Room</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#040302; --panel:#0a0805; --panel2:#0f0c07; --line:rgba(255,176,0,.13); --line2:rgba(255,176,0,.26);
+  --amber:#ffb000; --amber2:#ffcf5a; --dim:#8a6416; --mute:#6f5a33; --text:#f3e2bd; --text2:#bda672;
+  --orange:#ff7a1a; --red:#ff3b2f; --ok:#ffd36b; --glow:0 0 18px rgba(255,170,0,.25);
+  --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace; --head:"Chakra Petch",var(--mono);
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font:12px/1.45 var(--mono)}
+body{min-height:100vh;background:
+  radial-gradient(1200px 700px at 50% 38%,rgba(255,140,0,.07),transparent 70%),
+  repeating-linear-gradient(0deg,rgba(255,176,0,.025) 0 1px,transparent 1px 3px),var(--bg)}
+a{color:var(--amber2)}
+button{font:inherit;cursor:pointer}
+.hdr{display:flex;align-items:center;gap:14px;padding:10px 18px;border-bottom:1px solid var(--line2);
+  background:linear-gradient(180deg,rgba(255,176,0,.06),transparent);flex-wrap:wrap}
+.logo{font:700 18px/1 var(--head);letter-spacing:.14em;color:var(--amber);text-shadow:var(--glow)}
+.logo small{color:var(--dim);font-weight:600;letter-spacing:.3em;margin-left:8px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border:1px solid var(--line2);border-radius:3px;
+  font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--text2);white-space:nowrap}
+.chip b{color:var(--amber);font-weight:700}
+.chip.lock{border-color:rgba(255,59,47,.5);color:#ffb3ad}
+.chip.arm{border-color:var(--amber);color:var(--amber);box-shadow:var(--glow);animation:blink 1.2s steps(2) infinite}
+.sp{flex:1}
+.clock{font:600 15px var(--head);letter-spacing:.08em;color:var(--amber2)}
+.cd{font:700 15px var(--head);letter-spacing:.1em;color:var(--amber)}
+.btn{background:transparent;border:1px solid var(--line2);color:var(--amber2);padding:5px 10px;border-radius:3px;
+  letter-spacing:.1em;text-transform:uppercase;font-size:10.5px}
+.btn:hover{border-color:var(--amber);color:var(--amber);box-shadow:var(--glow)}
+.btn.hot{border-color:var(--amber);background:rgba(255,176,0,.12);color:var(--amber)}
+.btn.warn{border-color:rgba(255,59,47,.6);color:#ff9a92}
+.btn:disabled{opacity:.35;cursor:not-allowed;box-shadow:none}
+.tape{overflow:hidden;white-space:nowrap;border-bottom:1px solid var(--line);background:rgba(0,0,0,.35);height:26px;position:relative}
+.tape .run{display:inline-block;padding-left:100%;animation:tape 90s linear infinite;line-height:26px;color:var(--text2)}
+.tape .run span{margin-right:34px}.tape .run b{color:var(--amber)}
+.tape:hover .run{animation-play-state:paused}
+.grid{display:grid;grid-template-columns:330px minmax(420px,1fr) 400px;gap:12px;padding:12px 14px}
+.col{display:flex;flex-direction:column;gap:12px;min-width:0}
+.card{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:4px;position:relative;min-width:0}
+.card:before,.card:after{content:"";position:absolute;width:10px;height:10px;border:1px solid var(--amber);opacity:.55}
+.card:before{left:-1px;top:-1px;border-right:0;border-bottom:0}.card:after{right:-1px;bottom:-1px;border-left:0;border-top:0}
+.ct{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--line);
+  font:600 11.5px var(--head);letter-spacing:.22em;text-transform:uppercase;color:var(--amber)}
+.ct .n{color:var(--dim);font-family:var(--mono);letter-spacing:.05em}
+.cb{padding:10px 12px}
+.feed{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;padding:9px 0;border-bottom:1px dashed var(--line)}
+.feed:last-child{border-bottom:0}
+.vd{grid-row:span 3;align-self:start;min-width:74px;text-align:center;padding:4px 6px;border:1px solid;border-radius:3px;
+  font:700 10.5px var(--head);letter-spacing:.14em}
+.vd.LIVE{color:var(--ok);border-color:var(--ok);box-shadow:var(--glow)}
+.vd.STALE{color:var(--dim);border-color:var(--dim);background:repeating-linear-gradient(135deg,rgba(138,100,22,.18) 0 4px,transparent 4px 8px)}
+.vd.DOWN{color:var(--red);border-color:var(--red)}
+.vd.BLOCKED{color:var(--orange);border-color:var(--orange);animation:blink 1s steps(2) infinite}
+.fl{font-weight:700;color:var(--text)}.fw{color:var(--text2)}.fm{color:var(--mute);font-size:10.5px}
+.mut{color:var(--mute)}.amb{color:var(--amber)}.red{color:var(--red)}.org{color:var(--orange)}
+textarea{width:100%;height:92px;resize:vertical;background:#050403;border:1px solid var(--line2);color:var(--text);
+  font:11px/1.4 var(--mono);padding:8px;border-radius:3px}
+textarea:focus{outline:none;border-color:var(--amber);box-shadow:var(--glow)}
+.art{display:grid;grid-template-columns:62px 84px 1fr auto;gap:6px;align-items:center;padding:4px 0;font-size:11px;white-space:nowrap}
+.art .st{font-weight:700;letter-spacing:.08em}.art span{overflow:hidden;text-overflow:ellipsis}
+.radarwrap{position:relative;display:flex;flex-direction:column;align-items:center}
+#radar{width:100%;max-width:min(980px,calc(100vh - 170px));min-width:300px;aspect-ratio:1/1;display:block;cursor:crosshair;margin:0 auto}
+.rbar{display:flex;gap:6px;flex-wrap:wrap;padding:9px 12px;border-bottom:1px solid var(--line);align-items:center}
+.flt{background:transparent;border:1px solid var(--line);color:var(--text2);padding:3px 8px;border-radius:3px;font-size:10.5px;letter-spacing:.06em}
+.flt.on{border-color:var(--amber);color:var(--amber);background:rgba(255,176,0,.08)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;padding:8px 12px;border-top:1px solid var(--line);color:var(--text2);font-size:10.5px}
+.legend i{display:inline-block;width:9px;height:9px;margin-right:5px;vertical-align:-1px}
+#tip{position:fixed;pointer-events:none;z-index:9;background:rgba(8,6,3,.95);border:1px solid var(--amber);padding:7px 9px;
+  border-radius:3px;max-width:320px;display:none;box-shadow:var(--glow);font-size:11px}
+.big{font:700 26px/1.05 var(--head);letter-spacing:.06em;color:var(--amber);text-shadow:var(--glow)}
+.kv{display:grid;grid-template-columns:110px 1fr;gap:3px 10px;margin-top:8px;font-size:11.5px}
+.kv div:nth-child(odd){color:var(--mute);text-transform:uppercase;letter-spacing:.08em;font-size:10px;padding-top:1px}
+.desc{margin-top:8px;color:var(--text2);font-size:11px;max-height:110px;overflow:auto;border-left:2px solid var(--line2);padding-left:8px}
+.tag{display:inline-block;padding:1px 6px;margin:2px 4px 0 0;border:1px solid var(--line2);border-radius:2px;font-size:9.5px;letter-spacing:.1em;color:var(--text2)}
+.lv{font:700 10px var(--head);letter-spacing:.14em;padding:2px 6px;border-radius:2px;border:1px solid}
+.lv.RED{color:var(--red);border-color:var(--red)}.lv.ORANGE{color:var(--orange);border-color:var(--orange)}
+.lv.YELLOW{color:var(--amber2);border-color:var(--amber2)}.lv.WATCH{color:var(--dim);border-color:var(--dim)}
+table{width:100%;border-collapse:collapse;font-size:11px}
+th{text-align:left;color:var(--mute);font-weight:500;letter-spacing:.1em;font-size:9.5px;text-transform:uppercase;padding:5px 6px;border-bottom:1px solid var(--line)}
+td{padding:5px 6px;border-bottom:1px solid rgba(255,176,0,.06);white-space:nowrap}
+tr.sel td{background:rgba(255,176,0,.08)}
+tbody tr{cursor:pointer}tbody tr:hover td{background:rgba(255,176,0,.05)}
+.age{display:inline-block;min-width:34px;text-align:right}
+.age.fresh{color:var(--amber);font-weight:700}.age.stale{color:var(--mute)}
+.bottom{display:grid;grid-template-columns:1.25fr 1fr;gap:12px;padding:0 14px 16px}
+.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.stat{border:1px solid var(--line);padding:8px;border-radius:3px}
+.stat .l{color:var(--mute);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase}
+.stat .v{font:700 17px var(--head);color:var(--amber2);margin-top:2px}
+.note{color:var(--mute);font-size:10.5px;margin-top:6px}
+.edge{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.bar{height:6px;background:rgba(255,176,0,.08);position:relative;margin-top:6px}
+.bar i{position:absolute;top:0;bottom:0;background:var(--amber)}
+.bar u{position:absolute;top:-3px;bottom:-3px;width:1px;background:var(--text2)}
+@keyframes blink{50%{opacity:.45}}
+@keyframes tape{to{transform:translateX(-100%)}}
+@media (max-width:1380px){.grid{grid-template-columns:300px 1fr}.grid .col.r{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr}}
+@media (max-width:980px){.grid,.bottom{grid-template-columns:1fr}.grid .col.r{grid-template-columns:1fr}.stats{grid-template-columns:repeat(3,1fr)}
+  .hdr{padding:10px 12px}.grid{padding:10px}.bottom{padding:0 10px 14px}}
+@media (prefers-reduced-motion:reduce){.tape .run,.chip.arm,.vd.BLOCKED{animation:none}}
+</style>
+</head>
+<body>
+<header class="hdr">
+  <div class="logo">GOVAWARD<small>WAR ROOM</small></div>
+  <span class="chip" id="mode">MODE <b>…</b></span>
+  <span class="chip lock" id="live" title="LIVE trading needs GOVAWARD_ALLOW_LIVE=yes in the server .env">LIVE 🔒 LOCKED</span>
+  <span class="chip" id="sniper">SNIPER STANDBY</span>
+  <span class="sp"></span>
+  <span class="chip">ET <span class="clock" id="clock">--:--:--</span></span>
+  <span class="chip">DoD DROP <span class="cd" id="cd">T-–</span></span>
+  <span class="chip" id="upd">SYNC …</span>
+  <a class="btn" href="/classic">Classic view</a>
+</header>
+<div class="tape"><div class="run" id="tape"><span>Acquiring contacts…</span></div></div>
+
+<main class="grid">
+  <section class="col">
+    <div class="card">
+      <div class="ct">Feed status <span class="n">· facts, not lights</span></div>
+      <div class="cb" id="feeds"><div class="mut">Loading…</div></div>
+    </div>
+    <div class="card">
+      <div class="ct">DoD drop box <span class="n" id="dodn"></span></div>
+      <div class="cb">
+        <div id="articles" class="mut">No articles yet.</div>
+        <div class="note" id="dodhint">If war.gov blocks an article: open it in your browser, select all, copy, paste here.</div>
+        <textarea id="paste" placeholder="Paste the war.gov 'Contracts for …' page here (text or HTML)"></textarea>
+        <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
+          <button class="btn hot" id="ingest">Ingest page</button>
+          <label class="mut" style="font-size:10.5px"><input type="checkbox" id="dry"> dry run (no paper trades)</label>
+        </div>
+        <div class="note" id="ingestres"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="col">
+    <div class="card radarwrap">
+      <div class="rbar" style="width:100%">
+        <span class="ct" style="border:0;padding:0 8px 0 0">Contact radar</span>
+        <button class="flt on" data-f="all">All</button>
+        <button class="flt" data-f="ticker">Ticker-matched</button>
+        <button class="flt" data-f="hot">Red / Orange</button>
+        <button class="flt" data-f="big">≥ $500M</button>
+        <button class="flt" data-f="fresh">≤ 7 days</button>
+        <span class="sp"></span><span class="mut" id="rcount"></span>
+      </div>
+      <canvas id="radar" width="900" height="900" aria-label="Radar of recent contract awards"></canvas>
+      <div class="legend" style="width:100%">
+        <span><i style="background:var(--red);transform:rotate(45deg)"></i>RED</span>
+        <span><i style="background:var(--orange);clip-path:polygon(50% 0,100% 100%,0 100%)"></i>ORANGE</span>
+        <span><i style="background:var(--amber2)"></i>YELLOW</span>
+        <span><i style="background:var(--dim);border-radius:50%"></i>WATCH</span>
+        <span class="mut">size = award $ · distance = age (center = now) · wedge = buyer · bright ring = &lt; 48h</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="col r">
+    <div class="card">
+      <div class="ct">Contact <span class="n" id="cid"></span></div>
+      <div class="cb" id="contact"><div class="mut">Click a blip or a target.</div></div>
+    </div>
+    <div class="card">
+      <div class="ct">Target board <span class="n">· award ÷ market cap</span></div>
+      <div class="cb" style="padding:4px 6px 8px">
+        <table><thead><tr><th>Tkr</th><th>Award</th><th>Ratio</th><th>Lvl</th><th style="text-align:right">Age</th></tr></thead>
+        <tbody id="targets"></tbody></table>
+        <div class="note" id="tnote"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<section class="bottom">
+  <div class="card">
+    <div class="ct">Paper book <span class="n">· simulated money only</span></div>
+    <div class="cb">
+      <div class="stats" id="stats"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px">
+        <div><div class="mut" style="letter-spacing:.12em;font-size:9.5px">PENDING APPROVAL</div>
+          <table><tbody id="pending"></tbody></table></div>
+        <div><div class="mut" style="letter-spacing:.12em;font-size:9.5px">POSITIONS · OPEN + RECENT CLOSED</div>
+          <table><tbody id="positions"></tbody></table></div>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ct">Edge check <span class="n">· does an award move the stock?</span></div>
+    <div class="cb" id="edge"><div class="mut">Event study not run yet.</div></div>
+  </div>
+</section>
+<div id="tip"></div>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const usd = (v) => v == null ? "—" : v >= 1e9 ? "$" + (v / 1e9).toFixed(2) + "B" : v >= 1e6 ? "$" + (v / 1e6).toFixed(1) + "M" : "$" + Math.round(v).toLocaleString();
+const money = (v) => v == null ? "—" : (v < 0 ? "-$" : "$") + Math.abs(v).toLocaleString(undefined, {maximumFractionDigits: 2});
+const ageTxt = (d) => d == null ? "?" : d === 0 ? "today" : d + "d";
+const hrsTxt = (h) => h == null ? "never" : h < 1 ? Math.round(h * 60) + "m ago" : h < 48 ? h.toFixed(0) + "h ago" : Math.round(h / 24) + "d ago";
+const LV = {RED: "#ff3b2f", ORANGE: "#ff7a1a", YELLOW: "#ffcf5a", WATCH: "#8a6416"};
+
+let DATA = null, SEL = null, FILTER = "all", lastOk = 0;
+
+async function api(path, opts) {
+  const r = await fetch(path, Object.assign({credentials: "same-origin", headers: {"Content-Type": "application/json"}}, opts || {}));
+  let j = null; try { j = await r.json(); } catch (e) {}
+  if (!r.ok) throw new Error((j && j.detail) || ("HTTP " + r.status));
+  return j;
+}
+
+async function load() {
+  try {
+    DATA = await api("/api/warroom");
+    lastOk = Date.now();
+    render();
+    if (DATA.feeds.some((f) => f.reachable === null)) setTimeout(load, 9000);   // first health check still running
+  } catch (e) {
+    $("upd").innerHTML = '<span class="red">SYNC LOST</span>';
+    $("upd").title = String(e);
+  }
+}
+
+function hoursSince(iso) { if (!iso) return null; return (Date.now() - new Date(iso).getTime()) / 3.6e6; }
+
+function render() {
+  const d = DATA;
+  $("mode").innerHTML = "MODE <b>" + esc(d.mode.engine_mode || "?") + "</b>";
+  const live = $("live");
+  live.textContent = d.mode.live_allowed ? "LIVE ARMED ⚠" : "LIVE 🔒 LOCKED";
+  live.className = "chip " + (d.mode.live_allowed ? "arm" : "lock");
+  const sn = $("sniper");
+  sn.textContent = d.sniper_window ? "SNIPER ARMED · polling war.gov" : "SNIPER STANDBY";
+  sn.className = "chip" + (d.sniper_window ? " arm" : "");
+  RADAR.setData(d);
+  renderFeeds(d); renderDod(d); renderTape(d); renderTargets(d); renderBook(d); renderEdge(d);
+  if (SEL) { const a = d.awards.find((x) => x.id === SEL); if (a) renderContact(a); }
+  else { const top = targets(d)[0] || d.awards[0]; if (top) select(top.id, false); }
+}
+
+function renderFeeds(d) {
+  $("feeds").innerHTML = d.feeds.map((f) => {
+    const reach = f.reachable === undefined ? "" : f.reachable === null ? `<span class="mut">checking ${esc(f.host)}…</span>` : f.reachable
+      ? `<span class="mut">${esc(f.host)} answers · ${f.connect_ms} ms</span>`
+      : `<span class="red">${esc(f.host)} unreachable from server</span>`;
+    return `<div class="feed"><div class="vd ${esc(f.verdict)}">${esc(f.verdict)}</div>
+      <div class="fl">${esc(f.label)}</div>
+      <div class="fw">${esc(f.why)}</div>
+      <div class="fm">last productive run ${hrsTxt(f.last_productive_age_h)} · ${f.award_count} awards on file<br>${reach}
+      ${f.last_status === "error" && f.last_error ? '<br><span class="org">last error: ' + esc(f.last_error.slice(0, 110)) + "</span>" : ""}</div></div>`;
+  }).join("");
+}
+
+function renderDod(d) {
+  const arts = d.dod.articles || [];
+  const aw = d.dod.awaiting || [];
+  $("dodn").textContent = aw.length ? "· " + aw.length + " awaiting paste" : "";
+  $("articles").innerHTML = arts.length ? arts.map((a) => {
+    const st = a.status === "blocked" ? '<span class="st org">BLOCKED</span>' : a.via === "drop"
+      ? '<span class="st amb">PASTED</span>' : '<span class="st amb">READ</span>';
+    const n = a.status === "done" && a.awards != null ? `${a.awards} awards ≥ $50M` : a.status === "blocked" ? "paste it below" : "";
+    return `<div class="art">${st}<span>${esc(a.date)}</span><span class="mut">${esc(n)}</span>
+      <a href="${esc(a.url)}" target="_blank" rel="noopener">open ↗</a></div>`;
+  }).join("") : '<div class="mut">No war.gov articles checked yet. The sniper polls 4:45–7:30 PM ET.</div>';
+}
+
+function renderTape(d) {
+  const items = d.awards.slice(0, 40).map((a) =>
+    `<span><b>${esc(a.ticker || (a.awardee_name_raw || "?").slice(0, 26))}</b> ${usd(a.award_amount)} · ${esc(RADAR.sectorName(a.sector))} · ${ageTxt(a.age_days)}</span>`);
+  $("tape").innerHTML = items.join("") || "<span>No contacts in range.</span>";
+}
+
+function targets(d) {
+  return d.awards.filter((a) => a.ticker && a.ratio_pct != null)
+    .sort((x, y) => (x.age_days > 14) - (y.age_days > 14) || y.ratio_pct - x.ratio_pct).slice(0, 14);
+}
+
+function renderTargets(d) {
+  const t = targets(d);
+  $("targets").innerHTML = t.map((a) => `<tr data-id="${a.id}" class="${a.id === SEL ? "sel" : ""}">
+    <td class="amb"><b>${esc(a.ticker)}</b></td><td>${usd(a.award_amount)}</td>
+    <td>${a.ratio_pct.toFixed(a.ratio_pct < 1 ? 2 : 1)}%</td><td><span class="lv ${esc(a.alert_level || "WATCH")}">${esc(a.alert_level || "WATCH")}</span></td>
+    <td style="text-align:right"><span class="age ${a.age_days <= 2 ? "fresh" : a.age_days > 14 ? "stale" : ""}">${ageTxt(a.age_days)}</span></td></tr>`).join("")
+    || '<tr><td colspan="5" class="mut">No ticker-matched awards in range.</td></tr>';
+  const fresh = t.filter((a) => a.age_days <= 7).length;
+  $("tnote").textContent = t.length ? `${fresh} of ${t.length} targets are ≤ 7 days old. Older ones are history, not signals.` : "";
+}
+
+const safeUrl = (u) => /^https?:\/\//i.test(u || "") ? u : null;
+
+function select(id, scroll) {
+  SEL = id;
+  const a = DATA && DATA.awards.find((x) => x.id === id);
+  if (a) renderContact(a);
+  document.querySelectorAll("#targets tr").forEach((tr) => tr.classList.toggle("sel", +tr.dataset.id === id));
+  RADAR.select(id);
+}
+
+function renderContact(a) {
+  $("cid").textContent = "· #" + a.id;
+  const flags = [a.is_idiq && "IDIQ ceiling", a.is_modification && "modification", a.is_option_exercise && "option",
+    a.is_ceiling_only && "ceiling only"].filter(Boolean).map((f) => `<span class="tag">${f}</span>`).join("");
+  const src = safeUrl(a.source_url);
+  const stale = a.age_days != null && a.age_days > 7;
+  $("contact").innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+      <div><div class="big">${esc(a.ticker || "NO TICKER")}</div>
+        <div class="fw">${esc(a.company_name || a.parent_company_name || a.awardee_name_raw || "")}</div></div>
+      <span class="lv ${esc(a.alert_level || "WATCH")}">${esc(a.alert_level || "WATCH")} ${a.materiality_score ?? ""}</span>
+    </div>
+    <div class="kv">
+      <div>Award</div><div class="amb"><b>${usd(a.award_amount)}</b>${a.obligated_amount ? ' <span class="mut">obligated ' + usd(a.obligated_amount) + "</span>" : ""}</div>
+      <div>÷ Market cap</div><div>${a.ratio_pct != null ? a.ratio_pct.toFixed(2) + "% of " + usd(a.market_cap) : '<span class="mut">no market cap on file</span>'}</div>
+      <div>Age</div><div class="${stale ? "mut" : "amb"}">${ageTxt(a.age_days)} <span class="mut">(posted ${esc(a.posted_date || "?")})</span>${stale ? ' <span class="org">· likely priced in</span>' : ""}</div>
+      <div>Buyer</div><div>${esc(a.sub_agency || a.agency || "?")}</div>
+      <div>Awardee</div><div>${esc(a.awardee_name_raw || "?")}</div>
+      <div>Contract</div><div>${esc(a.contract_number || "—")} <span class="mut">· ${esc(a.source)}</span></div>
+    </div>
+    <div style="margin-top:6px">${flags}</div>
+    <div class="desc">${esc(a.description || "No description.")}</div>
+    <div style="display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap">
+      <button class="btn hot" id="stage" ${a.ticker ? "" : "disabled"}>Stage paper trade</button>
+      ${src ? `<a class="btn" href="${esc(src)}" target="_blank" rel="noopener">Source ↗</a>` : ""}
+      <span class="note" id="stageres" style="margin:0"></span>
+    </div>`;
+  const b = $("stage");
+  if (b) b.onclick = () => armThen(b, "Confirm paper stage?", async () => {
+    try { const o = await api("/api/trader/stage_catalyst/" + a.id, {method: "POST"});
+      $("stageres").innerHTML = `<span class="amb">Staged order #${esc(o.id)} · ${esc(o.status)}</span>`; load();
+    } catch (e) { $("stageres").innerHTML = `<span class="org">${esc(e.message)}</span>`; }
+  });
+}
+
+// two-click confirm: first click arms the button for 4 s, second click acts
+function armThen(btn, label, fn) {
+  if (btn.dataset.armed) { delete btn.dataset.armed; btn.textContent = btn.dataset.txt; fn(); return; }
+  btn.dataset.txt = btn.textContent; btn.dataset.armed = "1"; btn.textContent = label;
+  setTimeout(() => { if (btn.dataset.armed) { delete btn.dataset.armed; btn.textContent = btn.dataset.txt; } }, 4000);
+}
+
+function renderBook(d) {
+  const s = d.book.stats;
+  const cells = [["Equity", money(s.portfolio_equity)], ["Cash", money(s.paper_cash_balance)],
+    ["Realized P&L", money(s.total_realized_pnl)], ["Open / pending", s.open_positions_count + " / " + s.pending_orders_count],
+    ["Win rate", s.winning_trades + s.losing_trades ? s.win_rate + "% (" + s.winning_trades + "-" + s.losing_trades + ")" : "—"]];
+  $("stats").innerHTML = cells.map(([l, v]) => `<div class="stat"><div class="l">${l}</div><div class="v">${esc(v)}</div></div>`).join("");
+  $("pending").innerHTML = d.book.pending.map((o) => `<tr><td class="amb"><b>${esc(o.ticker)}</b></td><td>${money(o.total_cost)}</td>
+      <td class="mut">${esc(o.mode)}</td><td style="text-align:right"><button class="btn" data-ap="${o.id}">Approve</button>
+      <button class="btn warn" data-rj="${o.id}">Reject</button></td></tr>`).join("")
+    || '<tr><td class="mut">Nothing waiting.</td></tr>';
+  const pos = d.book.positions.map((p) => `<tr><td class="amb"><b>${esc(p.ticker)}</b></td><td>open</td>
+      <td>${money(p.unrealized_pnl)}</td><td class="mut">${esc((p.opened_at || "").slice(0, 10))}</td></tr>`)
+    .concat(d.book.closed.slice(0, 6).map((p) => `<tr><td><b>${esc(p.ticker)}</b></td><td class="mut">${esc(p.exit_reason || "closed")}</td>
+      <td class="${(p.realized_pnl || 0) < 0 ? "red" : "amb"}">${money(p.realized_pnl)}</td><td class="mut">${esc((p.closed_at || "").slice(0, 10))}</td></tr>`));
+  $("positions").innerHTML = pos.join("") || '<tr><td class="mut">No positions.</td></tr>';
+  document.querySelectorAll("[data-ap]").forEach((b) => b.onclick = () => armThen(b, "Confirm", () => act("/api/trader/orders/" + b.dataset.ap + "/approve")));
+  document.querySelectorAll("[data-rj]").forEach((b) => b.onclick = () => armThen(b, "Confirm", () => act("/api/trader/orders/" + b.dataset.rj + "/reject")));
+}
+
+async function act(path) { try { await api(path, {method: "POST"}); } catch (e) { alertLine(e.message); } load(); }
+function alertLine(m) { $("upd").innerHTML = '<span class="org">' + esc(m) + "</span>"; }
+
+function renderEdge(d) {
+  const e = d.edge;
+  if (!e) { $("edge").innerHTML = '<div class="mut">Event study not run yet.</div>'; return; }
+  const row = (h, src, label) => {
+    const r = src[h]; if (!r) return "";
+    const lo = r.ci95[0], hi = r.ci95[1], has = lo != null && hi != null;
+    const span = Math.max(Math.abs(lo || 0), Math.abs(hi || 0), Math.abs(r.mean), 0.5) * 1.15;
+    const x = (v) => 50 + 50 * v / span;
+    const verdict = !has ? '<span class="mut">needs ≥ 2 news days</span>' : lo > 0 ? '<span class="amb">positive (CI above 0)</span>'
+      : hi < 0 ? '<span class="red">negative (CI below 0)</span>' : '<span class="mut">not distinguishable from 0</span>';
+    return `<div class="stat"><div class="l">${esc(h)} vs ${esc(label)}</div><div class="v">${r.mean >= 0 ? "+" : ""}${r.mean.toFixed(2)}%</div>
+      <div class="mut" style="font-size:10.5px">${has ? "95% CI " + lo.toFixed(2) + " … " + hi.toFixed(2) : "no CI"} · ${r.n} events / ${r.dates ?? "?"} days</div>
+      <div class="bar">${has ? `<i style="left:${Math.min(x(lo), x(hi))}%;width:${Math.abs(x(hi) - x(lo))}%"></i>` : ""}<u style="left:50%"></u></div>
+      <div style="margin-top:5px;font-size:10.5px">${verdict}</div></div>`;
+  };
+  const cells = Object.keys(e.horizons).map((h) => row(h, e.horizons, e.benchmark + " (sector)"))
+    .concat(Object.keys(e.vs_market || {}).slice(-1).map((h) => row(h, e.vs_market, e.market_benchmark + " (market)")));
+  $("edge").innerHTML = `<div class="edge">${cells.join("")}</div>
+    <div class="note" style="color:var(--text2)">${esc(e.summary || "")}</div>
+    <div class="note">CIs treat each news day as one observation (awards on the same day share the sector's move). ${esc(e.events)} events · ${esc(e.tickers)} tickers · ran ${esc((e.generated_at || "").slice(0, 16))}</div>`;
+}
+
+$("ingest").onclick = async () => {
+  const text = $("paste").value;
+  $("ingestres").textContent = "Ingesting…";
+  try {
+    const r = await api("/api/defense/drop", {method: "POST", body: JSON.stringify({text, dry_run: $("dry").checked})});
+    $("ingestres").innerHTML = `<span class="amb">${r.awards_detected} awards read · ${r.inserted_awards} new · ${r.alpha_plays.length} alpha plays · ${r.orders_placed.length} paper orders</span>` +
+      (r.errors && r.errors.length ? `<br><span class="org">${esc(r.errors[0])}</span>` : "");
+    if (r.awards_detected) $("paste").value = "";
+    load();
+  } catch (e) { $("ingestres").innerHTML = `<span class="org">${esc(e.message)}</span>`; }
+};
+$("targets").onclick = (ev) => { const tr = ev.target.closest("tr[data-id]"); if (tr) select(+tr.dataset.id); };
+document.querySelectorAll(".flt").forEach((b) => b.onclick = () => {
+  FILTER = b.dataset.f; document.querySelectorAll(".flt").forEach((x) => x.classList.toggle("on", x === b)); RADAR.setFilter(FILTER);
+});
+
+function tick() {
+  if (!DATA) return;
+  const drift = (Date.now() - lastOk) / 1000;
+  const now = new Date(new Date(DATA.now_et).getTime() + drift * 1000);
+  $("clock").textContent = now.toTimeString().slice(0, 8);
+  let s = Math.max(0, DATA.seconds_to_drop - drift);
+  const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), sec = Math.floor(s % 60);
+  $("cd").textContent = s <= 0 ? "DROP WINDOW" : "T-" + (h ? h + "h " : "") + String(m).padStart(2, "0") + "m " + String(sec).padStart(2, "0") + "s";
+  $("upd").textContent = "SYNC " + Math.round(drift) + "s";
+}
+
+// ───────────────────────────── RADAR ─────────────────────────────
+const RADAR = (() => {
+  const cv = $("radar"), ctx = cv.getContext("2d");
+  const MAXD = 75, SWEEP_S = 6.5;          // days at the rim, seconds per revolution
+  const RINGS = [[1, "24H"], [7, "7D"], [30, "30D"], [60, "60D"]];
+  let W = 900, R = 400, CX = 450, CY = 450, dpr = 1;
+  let sectors = [], blips = [], sel = null, hover = null, filter = "all";
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const t0 = performance.now();
+
+  function resize() {
+    const box = cv.getBoundingClientRect();
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = Math.max(320, Math.round(box.width));
+    cv.width = W * dpr; cv.height = W * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    CX = CY = W / 2; R = W / 2 - Math.max(34, W * 0.055);
+    layout();
+  }
+  const rOf = (age) => R * (0.05 + 0.95 * Math.sqrt(Math.min(Math.max(age ?? MAXD, 0), MAXD) / MAXD));
+  const wedge = () => (Math.PI * 2) / Math.max(sectors.length, 1);
+  const angOf = (i) => -Math.PI / 2 + wedge() * (i + 0.5);
+  function hash(n) { let x = (n * 2654435761) >>> 0; x ^= x >>> 15; x = Math.imul(x, 2246822519) >>> 0; return (x % 10000) / 10000; }
+  const sizeOf = (a) => Math.max(2.6, Math.min(14, 2.6 + 3.4 * Math.log10(Math.max(a.award_amount || 5e7, 5e7) / 5e7) * 1.15));
+
+  function pass(a) {
+    if (filter === "ticker") return !!a.ticker;
+    if (filter === "hot") return a.alert_level === "RED" || a.alert_level === "ORANGE";
+    if (filter === "big") return (a.award_amount || 0) >= 5e8;
+    if (filter === "fresh") return a.age_days != null && a.age_days <= 7;
+    return true;
+  }
+
+  function layout() {
+    blips = blips.map((b) => {
+      const jit = (hash(b.a.id) - 0.5) * wedge() * 0.78;
+      const ang = angOf(b.a.sector) + jit;
+      const rr = rOf(b.a.age_days) + (hash(b.a.id + 7) - 0.5) * R * 0.025;
+      return Object.assign(b, {ang, x: CX + Math.cos(ang) * rr, y: CY + Math.sin(ang) * rr, s: sizeOf(b.a)});
+    });
+  }
+
+  function setData(d) {
+    sectors = d.sectors || [];
+    blips = d.awards.map((a) => ({a}));
+    layout();
+    $("rcount").textContent = blips.filter((b) => pass(b.a)).length + " contacts · " + d.awards.filter((a) => a.age_days <= 2).length + " in last 48h";
+  }
+
+  function shape(x, y, s, lvl) {
+    ctx.beginPath();
+    if (lvl === "RED") { ctx.moveTo(x, y - s * 1.25); ctx.lineTo(x + s * 1.25, y); ctx.lineTo(x, y + s * 1.25); ctx.lineTo(x - s * 1.25, y); ctx.closePath(); }
+    else if (lvl === "ORANGE") { ctx.moveTo(x, y - s * 1.25); ctx.lineTo(x + s * 1.15, y + s * 0.85); ctx.lineTo(x - s * 1.15, y + s * 0.85); ctx.closePath(); }
+    else if (lvl === "YELLOW") { ctx.rect(x - s * 0.95, y - s * 0.95, s * 1.9, s * 1.9); }
+    else { ctx.arc(x, y, s, 0, Math.PI * 2); }
+  }
+
+  function drawScope(now) {
+    ctx.clearRect(0, 0, W, W);
+    const g = ctx.createRadialGradient(CX, CY, R * 0.05, CX, CY, R * 1.05);
+    g.addColorStop(0, "rgba(255,150,0,.10)"); g.addColorStop(0.7, "rgba(255,120,0,.035)"); g.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(CX, CY, R * 1.04, 0, Math.PI * 2); ctx.fill();
+    // wedges
+    const wd = wedge();
+    sectors.forEach((name, i) => {
+      const a0 = -Math.PI / 2 + wd * i;
+      ctx.strokeStyle = "rgba(255,176,0,.16)"; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(CX, CY); ctx.lineTo(CX + Math.cos(a0) * R, CY + Math.sin(a0) * R); ctx.stroke();
+      const am = a0 + wd / 2, lr = R + Math.max(16, W * 0.028);
+      ctx.save(); ctx.translate(CX + Math.cos(am) * lr, CY + Math.sin(am) * lr);
+      let rot = am + Math.PI / 2; if (Math.sin(am) > 0.0001) rot += Math.PI;
+      ctx.rotate(rot);
+      ctx.fillStyle = "rgba(255,190,80,.78)"; ctx.font = `600 ${Math.max(9, W * 0.0125)}px "Chakra Petch", monospace`;
+      ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(name, 0, 0); ctx.restore();
+    });
+    // rings
+    ctx.font = `500 ${Math.max(8.5, W * 0.0105)}px "JetBrains Mono", monospace`; ctx.textAlign = "left";
+    RINGS.forEach(([d, lab], k) => {
+      const r = rOf(d);
+      ctx.strokeStyle = k === 2 ? "rgba(255,176,0,.30)" : "rgba(255,176,0,.15)";
+      ctx.setLineDash(k === 0 ? [2, 4] : []); ctx.beginPath(); ctx.arc(CX, CY, r, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = "rgba(255,190,80,.55)"; ctx.fillText(lab, CX + 4, CY - r + 11);
+    });
+    ctx.strokeStyle = "rgba(255,176,0,.45)"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(CX, CY, R, 0, Math.PI * 2); ctx.stroke();
+    // ticks
+    for (let i = 0; i < 120; i++) {
+      const a = (Math.PI * 2 * i) / 120, l = i % 10 === 0 ? 9 : i % 5 === 0 ? 5 : 2.5;
+      ctx.strokeStyle = "rgba(255,176,0,.35)"; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(CX + Math.cos(a) * R, CY + Math.sin(a) * R); ctx.lineTo(CX + Math.cos(a) * (R - l), CY + Math.sin(a) * (R - l)); ctx.stroke();
+    }
+    // stale zone shading beyond 30d
+    ctx.fillStyle = "rgba(0,0,0,.28)"; ctx.beginPath(); ctx.arc(CX, CY, R, 0, Math.PI * 2); ctx.arc(CX, CY, rOf(30), 0, Math.PI * 2, true); ctx.fill();
+    // sweep
+    const sw = reduce ? -Math.PI / 2 : -Math.PI / 2 + ((now - t0) / 1000 / SWEEP_S) * Math.PI * 2;
+    if (ctx.createConicGradient) {
+      const cg = ctx.createConicGradient(sw - 1.25, CX, CY);
+      cg.addColorStop(0, "rgba(255,170,0,0)"); cg.addColorStop(0.19, "rgba(255,170,0,.20)"); cg.addColorStop(0.199, "rgba(255,200,90,.55)"); cg.addColorStop(0.2, "rgba(255,170,0,0)");
+      ctx.fillStyle = cg; ctx.beginPath(); ctx.moveTo(CX, CY); ctx.arc(CX, CY, R, sw - 1.25, sw); ctx.closePath(); ctx.fill();
+    }
+    ctx.strokeStyle = "rgba(255,210,120,.9)"; ctx.lineWidth = 1.6; ctx.shadowColor = "rgba(255,170,0,.9)"; ctx.shadowBlur = 12;
+    ctx.beginPath(); ctx.moveTo(CX, CY); ctx.lineTo(CX + Math.cos(sw) * R, CY + Math.sin(sw) * R); ctx.stroke(); ctx.shadowBlur = 0;
+    // hub
+    ctx.fillStyle = "#ffb000"; ctx.beginPath(); ctx.arc(CX, CY, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "rgba(255,190,80,.6)"; ctx.fillText("NOW", CX + 7, CY + 4);
+    return sw;
+  }
+
+  function drawBlips(now, sw) {
+    const twoPi = Math.PI * 2;
+    const swN = ((sw % twoPi) + twoPi) % twoPi;
+    const time = (now - t0) / 1000;
+    const vis = blips.filter((b) => pass(b.a));
+    // big + selected drawn last so they sit on top
+    vis.sort((p, q) => (p.a.id === sel) - (q.a.id === sel) || p.s - q.s);
+    for (const b of vis) {
+      const a = b.a, col = LV[a.alert_level] || LV.WATCH;
+      const bn = ((b.ang % twoPi) + twoPi) % twoPi;
+      const since = reduce ? 99 : ((swN - bn + twoPi) % twoPi) / twoPi * SWEEP_S;   // seconds since the sweep passed
+      const ping = Math.exp(-since / 1.4);
+      const stale = a.age_days == null || a.age_days > 30;
+      const base = stale ? 0.32 : a.age_days > 7 ? 0.62 : 0.95;
+      ctx.globalAlpha = Math.min(1, base + ping * 0.6);
+      ctx.shadowColor = col; ctx.shadowBlur = 4 + ping * 18;
+      ctx.fillStyle = col; shape(b.x, b.y, b.s * (1 + ping * 0.25), a.alert_level); ctx.fill();
+      if (a.ticker) { ctx.lineWidth = 1; ctx.strokeStyle = "rgba(255,235,190,.85)"; shape(b.x, b.y, b.s + 1.6, a.alert_level); ctx.stroke(); }
+      ctx.shadowBlur = 0;
+      if (a.age_days != null && a.age_days <= 2 && !reduce) {           // fresh contact: expanding ring
+        const ph = (time % 1.8) / 1.8;
+        ctx.globalAlpha = 0.8 * (1 - ph); ctx.strokeStyle = "#ffcf5a"; ctx.lineWidth = 1.4;
+        ctx.beginPath(); ctx.arc(b.x, b.y, b.s + 4 + ph * 16, 0, twoPi); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+      const label = a.id === sel || a.id === (hover && hover.a.id) || (a.ticker && (b.s > 7 || ping > 0.55) && !stale);
+      if (label) {
+        ctx.font = `700 ${Math.max(9.5, W * 0.0125)}px "JetBrains Mono", monospace`;
+        ctx.fillStyle = a.id === sel ? "#ffe2a0" : "rgba(255,214,140,.9)";
+        ctx.textAlign = b.x > CX ? "left" : "right";
+        ctx.fillText((a.ticker || "·") + " " + usd(a.award_amount), b.x + (b.x > CX ? 1 : -1) * (b.s + 6), b.y + 3);
+      }
+      if (a.id === sel) {                                              // target brackets
+        const k = b.s + 9, L = 6;
+        ctx.strokeStyle = "#ffe2a0"; ctx.lineWidth = 1.5;
+        [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(([sx, sy]) => {
+          ctx.beginPath(); ctx.moveTo(b.x + sx * k, b.y + sy * (k - L)); ctx.lineTo(b.x + sx * k, b.y + sy * k); ctx.lineTo(b.x + sx * (k - L), b.y + sy * k); ctx.stroke();
+        });
+        ctx.setLineDash([3, 4]); ctx.strokeStyle = "rgba(255,226,160,.35)";
+        ctx.beginPath(); ctx.moveTo(CX, CY); ctx.lineTo(b.x, b.y); ctx.stroke(); ctx.setLineDash([]);
+      }
+    }
+  }
+
+  function frame(now) {
+    if (W) { const sw = drawScope(now); drawBlips(now, sw); }
+    requestAnimationFrame(frame);
+  }
+
+  function pick(ev) {
+    const r = cv.getBoundingClientRect(), x = ev.clientX - r.left, y = ev.clientY - r.top;
+    let best = null, bd = 1e9;
+    for (const b of blips) { if (!pass(b.a)) continue; const d = Math.hypot(b.x - x, b.y - y) - b.s; if (d < bd) { bd = d; best = b; } }
+    return bd < 10 ? best : null;
+  }
+  cv.addEventListener("mousemove", (ev) => {
+    hover = pick(ev);
+    const tip = $("tip");
+    if (!hover) { tip.style.display = "none"; cv.style.cursor = "crosshair"; return; }
+    const a = hover.a; cv.style.cursor = "pointer";
+    tip.innerHTML = `<b class="amb">${esc(a.ticker || "no ticker")}</b> · ${usd(a.award_amount)} · <span class="lv ${esc(a.alert_level || "WATCH")}">${esc(a.alert_level || "WATCH")}</span><br>
+      ${esc((a.awardee_name_raw || "").slice(0, 60))}<br><span class="mut">${esc(sectorName(a.sector))} · ${ageTxt(a.age_days)}${a.ratio_pct != null ? " · " + a.ratio_pct.toFixed(2) + "% of cap" : ""}</span>`;
+    tip.style.display = "block";
+    tip.style.left = Math.min(ev.clientX + 14, innerWidth - 330) + "px"; tip.style.top = (ev.clientY + 14) + "px";
+  });
+  cv.addEventListener("mouseleave", () => { hover = null; $("tip").style.display = "none"; });
+  cv.addEventListener("click", (ev) => { const b = pick(ev); if (b) select(b.a.id); });
+  addEventListener("resize", resize);
+  function sectorName(i) { return sectors[i] || "?"; }
+
+  resize(); requestAnimationFrame(frame);
+  return {setData, select: (id) => { sel = id; }, setFilter: (f) => { filter = f; if (DATA) setData(DATA); }, sectorName};
+})();
+
+load();
+setInterval(load, 30000);
+setInterval(tick, 1000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
+</script>
+</body>
+</html>

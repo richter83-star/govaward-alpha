@@ -98,9 +98,11 @@ class PentagonSniper:
                 got = defense_daily.fetch_article_awards(url, art_date)
             except defense_daily.DefenseSiteBlocked:
                 state[url] = {"status": "blocked", "date": str(art_date), "at": now}
+                results["blocked_now"] = url
                 logger.warning("war.gov blocked %s (dated %s). %s", url, art_date, defense_daily.DROP_HINT)
                 break
             state[url] = {"status": "done", "date": str(art_date), "at": now, "via": "network", "awards": len(got)}
+            results["articles_fetched"] = results.get("articles_fetched", 0) + 1
             awards.extend(got)
         self._save_state(state)
         results["awaiting_drops"] = self.awaiting_drops()
@@ -180,6 +182,7 @@ class PentagonSniper:
             err = f"Failed fetching DoD awards: {exc}"
             logger.error(err)
             results["errors"].append(err)
+            self._record_run(conn, "error", 0, 0, err)
             return results
 
         if from_drop:
@@ -189,6 +192,10 @@ class PentagonSniper:
         results["awards_detected"] = len(awards)
         if not awards:
             logger.info("No DoD awards returned in this pass.")
+            if results.get("blocked_now"):
+                self._record_run(conn, "error", 0, 0, f"war.gov 403 on {results['blocked_now']} - paste needed")
+            elif from_drop or results.get("articles_fetched"):
+                self._record_run(conn, "success", 0, 0)
             return results
 
         # 2. Process each award through enrichment, scoring, and alpha detection
@@ -277,7 +284,17 @@ class PentagonSniper:
                 results["errors"].append(err)
 
         conn.commit()
+        self._record_run(conn, "success", results["awards_detected"], results["inserted_awards"])
         return results
+
+    @staticmethod
+    def _record_run(conn: Any, status: str, seen: int, inserted: int, error: str = "") -> None:
+        """One source_runs row per pass that actually read something (feeds the dashboard's health)."""
+        try:
+            run_id = db.start_run(conn, "defense_daily")
+            db.finish_run(conn, run_id, status, seen, inserted, 0, error[:500])
+        except Exception as exc:  # health bookkeeping must never break a snipe
+            logger.debug("source_runs bookkeeping failed: %s", exc)
 
     def watch(
         self,

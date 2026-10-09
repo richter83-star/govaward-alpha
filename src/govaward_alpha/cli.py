@@ -534,6 +534,38 @@ def pentagon_sniper_cmd(
 
 
 # ---------------------------------------------------------------------------
+# event-study
+# ---------------------------------------------------------------------------
+
+@app.command("event-study")
+def event_study_cmd(
+    benchmark: str = typer.Option("ITA", "--benchmark", "-b", help="Benchmark ticker (default: defense ETF ITA)"),
+) -> None:
+    """Measure 1- and 5-day abnormal returns after awards; writes data/event_study.json."""
+    _require_db()
+    from govaward_alpha.db import get_connection
+    from govaward_alpha.services import event_study
+
+    with get_connection() as conn:
+        res = event_study.run(conn, benchmark=benchmark)
+    if res.get("error"):
+        console.print(f"[yellow]{res['error']}[/yellow]")
+        raise typer.Exit(1)
+    path = event_study.write(res)
+    t = Table(title=f"Abnormal return vs {benchmark}")
+    for c in ("Horizon", "n", "Mean %", "95% CI", "Median %", "Hit rate"):
+        t.add_column(c)
+    for h, s in res["horizons"].items():
+        lo, hi = s["ci95"]
+        ci = "n/a" if lo is None else f"{lo:+.2f} .. {hi:+.2f}"
+        t.add_row(h, f"{s['n']} ({s.get('dates', '?')} days)", f"{s['mean']:+.2f}", ci,
+                  f"{s['median']:+.2f}", f"{s['hit_rate']:.0f}%")
+    console.print(t)
+    console.print(res["summary"])
+    console.print(f"[dim]wrote {path}[/dim]")
+
+
+# ---------------------------------------------------------------------------
 # dashboard
 # ---------------------------------------------------------------------------
 
