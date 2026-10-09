@@ -37,3 +37,6 @@ logs/
 .DS_Store
 Thumbs.db
 
+# Timestamped backups (may contain secrets)
+.env.bak*
+*.bak-*

@@ -248,3 +248,12 @@ overrides:
   boeing aerospace operations:
     parent_company_name: The Boeing Company
     ticker: BA
+  at t:
+    parent_company_name: AT&T Inc.
+    ticker: T
+  at t government:
+    parent_company_name: AT&T Inc.
+    ticker: T
+  mantech advanced systems:
+    parent_company_name: ManTech International Corporation (private)
+    ticker: null

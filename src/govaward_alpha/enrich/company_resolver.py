@@ -16,6 +16,7 @@ ticker. Prefer returning None and letting the operator add an override.
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 from typing import Any
 
@@ -207,6 +208,11 @@ def resolve(awardee_name_raw: str) -> dict[str, str | None]:
     }
 
 
+# Preferred shares, warrants and units ("T-PC" is AT&T's Series C preferred).
+# A contract award moves the operating company's common stock, not these.
+_NON_COMMON_SUFFIX = re.compile(r"(-P[A-Z]?|\.PR[A-Z]?|-WS|-WT|-U|-UN)$")
+
+
 def _guess_ticker_yfinance(raw_name: str, normalized: str) -> dict | None:
     """Try yfinance.search() to find a ticker for the company name.
 
@@ -246,7 +252,9 @@ def _guess_ticker_yfinance(raw_name: str, normalized: str) -> dict | None:
             continue
         # Skip pink-sheet / OTC tickers (they have very low volume and are
         # extremely unlikely to be the awardee on a $50M+ federal contract).
-        if exchange in {"PNK", "OTC", "OEM", "OQX"}:
+        if exchange in {"PNK", "OTC", "OEM", "OQX", "OID", "GREY", "OTCMKTS"}:
+            continue
+        if _NON_COMMON_SUFFIX.search(symbol):
             continue
 
         norm_result = normalize_company_name(name)

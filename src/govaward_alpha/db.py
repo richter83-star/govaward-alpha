@@ -755,11 +755,12 @@ def bulk_set_company_approvals(
 ) -> int:
     """
     Bulk authorizes or deauthorizes all qualified small & mid-cap companies (<= max_market_cap)
-    for autonomous auto-trading.
+    for autonomous auto-trading. Companies with an unknown market cap are skipped:
+    they can't be sized or verified (that gap let MANT, ASGN and T-PC in).
     """
     now = utcnow().isoformat()
     eligible = conn.execute(
-        "SELECT ticker, company_name FROM companies WHERE market_cap IS NULL OR market_cap <= ?",
+        "SELECT ticker, company_name FROM companies WHERE market_cap IS NOT NULL AND market_cap <= ?",
         (max_market_cap,),
     ).fetchall()
 
