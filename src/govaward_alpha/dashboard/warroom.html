@@ -307,7 +307,12 @@ function renderTape(d) {
   // rows with neither a ticker nor an awardee name (old SAM.gov parse) carry no signal: keep them off the tape
   const items = d.awards.filter((a) => a.ticker || (a.awardee_name_raw || "").trim()).slice(0, 40).map((a) =>
     `<span><b>${esc(a.ticker || (a.awardee_name_raw || "?").slice(0, 26))}</b> ${usd(a.award_amount)} · ${esc(RADAR.sectorName(a.sector))} · ${ageTxt(a.age_days)}</span>`);
-  $("tape").innerHTML = items.join("") || "<span>No contacts in range.</span>";
+  const run = $("tape");
+  run.innerHTML = items.join("") || "<span>No contacts in range.</span>";
+  // constant reading speed (~40 px/s) however long the tape is; only touch the
+  // duration when it really changes so the 30 s refresh doesn't make it jump
+  const secs = Math.max(30, Math.round(run.scrollWidth / 40));
+  if (Math.abs(secs - (renderTape.secs || 0)) > 5) { run.style.animationDuration = secs + "s"; renderTape.secs = secs; }
 }
 
 function targets(d) {
